@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Your Cart{% endblock %}
+
+{% block content %}
+<h1>Your Cart</h1>
+{% if cart.items.all %}
+    <table>
+        <tr>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Total</th>
+        </tr>
+        {% for item in cart.items.all %}
+        <tr>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>KES {{ item.total_price }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="2"><strong>Total:</strong></td>
+            <td><strong>KES {{ total }}</strong></td>
+        </tr>
+    </table>
+    <a href="{% url 'checkout' %}">Proceed to Checkout</a>
+{% else %}
+    <p>Your cart is empty.</p>
+    <a href="{% url 'product_list' %}">Browse Products</a>
+{% endif %}
+{% endblock %}

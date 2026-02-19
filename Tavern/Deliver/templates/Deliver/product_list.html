@@ -1,0 +1,97 @@
+{% extends "Deliver/base.html" %}
+{% load static %}
+{% block title %}Products{% endblock %}
+
+{% block content %}
+<style>
+    /* Scroller Styling */
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    .sub-card {
+        min-width: 140px;
+        transition: transform 0.2s;
+        text-align: center;
+    }
+    .sub-card:hover { transform: translateY(-5px); }
+
+    .img-circle {
+        width: 120px;
+        height: 120px;
+        border-radius: 10px; /* Matching the square-ish look in your screenshot */
+        overflow: hidden;
+        margin: 0 auto;
+        background: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .img-circle img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; /* Good for bottle images with backgrounds */
+        padding: 10px;
+    }
+    .sub-name {
+        font-weight: 700;
+        color: #333;
+        margin-top: 10px;
+        font-size: 0.9rem;
+    }
+</style>
+
+<div class="container my-4">
+    <div class="d-flex flex-nowrap overflow-auto hide-scrollbar py-3 mb-5 gap-3">
+        {% for sub in subcategories %}
+        <a href="{% url 'product_list_by_subcategory' sub.slug %}" class="sub-card text-decoration-none">
+            <div class="img-circle shadow-sm">
+                {% if sub.image %}
+                    <img src="{{ sub.image.url }}" alt="{{ sub.name }}">
+                {% else %}
+                    <i class="bi bi-patch-check-fill fs-1 text-danger"></i>
+                {% endif %}
+            </div>
+            <p class="sub-name">{{ sub.name }}</p>
+        </a>
+        {% empty %}
+            {% endfor %}
+    </div>
+
+    <h2 class="mb-4 fw-bold">
+        {% if category %}{{ category.name }}
+        {% elif subcategory %}{{ subcategory.name }}
+        {% else %}All Products
+        {% endif %}
+    </h2>
+
+    <div class="row row-cols-1 row-cols-md-3 row-cols-lg-4 g-4">
+        {% for product in products %}
+        <div class="col">
+            <div class="card h-100 border-0 shadow-sm">
+                <a href="{% url 'product_detail' product.slug %}">
+                    {% if product.image %}
+                        <img src="{{ product.image.url }}" class="card-img-top p-3" alt="{{ product.name }}" style="height: 200px; object-fit: contain;">
+                    {% else %}
+                        <img src="{% static 'images/default.png' %}" class="card-img-top p-3" alt="Default image" style="height: 200px; object-fit: contain;">
+                    {% endif %}
+                </a>
+                <div class="card-body d-flex flex-column text-center">
+                    <h6 class="card-title fw-bold">
+                        <a href="{% url 'product_detail' product.slug %}" class="text-dark text-decoration-none">{{ product.name }}</a>
+                    </h6>
+                    <p class="text-danger fw-bold mb-2">KES {{ product.price }}</p>
+                    <form action="{% url 'add_to_cart' product.pk %}" method="post" class="mt-auto">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm w-100 fw-bold">Add to Cart</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+            <div class="col-12">
+                <p class="text-muted">No products found in this category.</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

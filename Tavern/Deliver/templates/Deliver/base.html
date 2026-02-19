@@ -1,0 +1,113 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Haris Tavern | {% block title %}{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <style>
+        /* TOP BAR STYLING */
+        .top-bar { background: #d60000; color: white; padding: 12px 0; }
+        .search-container { flex-grow: 1; max-width: 500px; margin: 0 30px; }
+        .header-link { color: white; text-decoration: none; text-align: center; padding: 0 15px; border-right: 1px solid rgba(255,255,255,0.2); }
+        .header-link:last-child { border-right: none; }
+        .header-link i { font-size: 1.3rem; display: block; }
+        .header-link span { font-size: 0.75rem; font-weight: 500; }
+
+        /* NAV STYLING */
+        .category-nav { background: white; border-bottom: 1px solid #ddd; position: relative; }
+        .nav-category { position: static; } /* Required for full-width mega menu */
+        .nav-link { color: #333 !important; font-weight: 700; padding: 15px 12px !important; font-size: 0.9rem; text-transform: capitalize; }
+        .nav-link i { font-size: 0.7rem; margin-left: 3px; }
+
+        /* MEGA MENU STYLING */
+        .mega-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+            padding: 40px 0;
+            border-top: 1px solid #eee;
+        }
+        .nav-category:hover .mega-menu { display: block; }
+        .menu-column { border-left: 1px solid #eee; padding-left: 20px; min-height: 200px; }
+        .menu-column:first-child { border-left: none; }
+        .column-title { font-size: 0.75rem; color: #999; font-weight: 800; letter-spacing: 1px; margin-bottom: 15px; text-transform: uppercase; }
+        .subcategory-link { display: block; color: #444; text-decoration: none; font-size: 0.9rem; margin-bottom: 8px; transition: 0.2s; }
+        .subcategory-link:hover { color: #d60000; padding-left: 5px; }
+        .all-link { color: #d60000; font-weight: 700; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <div class="container d-flex align-items-center">
+        <h4 class="mb-0 fw-bold">HARIS TAVERN</h4>
+        
+        <div class="search-container">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control border-start-0" placeholder="Search products...">
+            </div>
+        </div>
+
+        <div class="d-flex align-items-center ms-auto">
+            <a href="#" class="header-link"><i class="bi bi-heart"></i><span>Wishlist</span></a>
+            <a href="{% url 'login' %}" class="header-link"><i class="bi bi-person"></i><span>Account</span></a>
+            <a href="{% url 'cart' %}" class="header-link border-0">
+                <i class="bi bi-cart3"></i>
+                <span class="badge bg-white text-dark mt-1">KES 0.00</span>
+            </a>
+        </div>
+    </div>
+</div>
+
+<nav class="category-nav">
+    <div class="container">
+        <ul class="nav">
+            {% for category in nav_categories %}
+            <li class="nav-item nav-category">
+                <a class="nav-link" href="#">
+                    {{ category.name }} <i class="bi bi-chevron-down"></i>
+                </a>
+                
+                <div class="mega-menu">
+                    <div class="container">
+                        <div class="row">
+                            {% regroup category.subcategories.all by group_name as group_list %}
+                            
+                            {% for group in group_list %}
+                            <div class="col-md-2 menu-column">
+                                <h6 class="column-title">{{ group.grouper }}</h6>
+                                {% for sub in group.list %}
+                                    <a href="{% url 'product_detail' sub.slug %}" class="subcategory-link">
+                                        {{ sub.name }}
+                                    </a>
+                                {% endfor %}
+                                <a href="#" class="subcategory-link all-link">All {{ group.grouper|title }}</a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</nav>
+
+<main class="container mt-4">
+    {% block content %}{% endblock %}
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
