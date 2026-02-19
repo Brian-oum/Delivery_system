@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Order History{% endblock %}
+
+{% block content %}
+<h1>Order History</h1>
+
+{% if orders %}
+    <ul>
+        {% for order in orders %}
+        <li>
+            <p>Order #: {{ order.id }} | Total: KES {{ order.total_amount }} | Status: {{ order.status }}</p>
+            <ul>
+                {% for item in order.items.all %}
+                <li>{{ item.product.name }} x{{ item.quantity }} - KES {{ item.price }}</li>
+                {% endfor %}
+            </ul>
+        </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>You have no past orders.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Current Promotions{% endblock %}
+
+{% block content %}
+<h1>Active Promotions</h1>
+{% if promotions %}
+    <ul>
+        {% for promo in promotions %}
+        <li>
+            <h2>{{ promo.title }}</h2>
+            <p>{{ promo.description }}</p>
+            <p>Valid from {{ promo.start_date }} to {{ promo.end_date }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No active promotions at the moment.</p>
+{% endif %}
+{% endblock %}
