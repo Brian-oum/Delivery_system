@@ -1,0 +1,139 @@
+{% extends "Deliver/base.html" %}
+{% block title %}Checkout{% endblock %}
+
+{% block content %}
+<style>
+    /* Reuse Stepper Styles from Cart - Set Step 2 to Active */
+    .checkout-stepper { display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; gap: 20px; }
+    .step { display: flex; flex-direction: column; align-items: center; color: #adb5bd; font-weight: 600; }
+    .step.active { color: #212529; }
+    .step-circle { width: 32px; height: 32px; border-radius: 50%; background: #dee2e6; color: white; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+    .step.active .step-circle { background: #343a40; }
+    .step-line { width: 150px; height: 2px; background: #dee2e6; margin-bottom: 25px; }
+    .step-line.filled { background: #28a745; }
+
+    .login-banner { background-color: #3498db; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+    .address-box { border: 2px dashed #dee2e6; padding: 40px; text-align: center; border-radius: 5px; cursor: pointer; }
+    .address-box:hover { border-color: #28a745; color: #28a745; }
+    .payment-option { border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin-bottom: 10px; }
+</style>
+
+<div class="container my-5">
+    <div class="checkout-stepper">
+        <div class="step active"><div class="step-circle">1</div><span>Shopping Basket</span></div>
+        <div class="step-line filled"></div>
+        <div class="step active"><div class="step-circle">2</div><span>Details and Checkout</span></div>
+        <div class="step-line"></div>
+        <div class="step"><div class="step-circle">3</div><span>Confirmation</span></div>
+    </div>
+
+    <div class="login-banner">
+        Returning customer? <a href="{% url 'login' %}" class="text-white fw-bold">Click here to login</a>
+    </div>
+
+    <p>Have a coupon? Cool! <a href="#" class="text-dark fw-bold">Redeem it here.</a></p>
+
+    <form method="POST">
+        {% csrf_token %}
+        <div class="row g-5">
+            <div class="col-lg-7">
+                <h2 class="fw-light mb-4">Your glass is almost full...</h2>
+                <p class="text-muted">Fill your details here ↓</p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">First name <span class="text-danger">*</span></label>
+                        <input type="text" name="first_name" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Last name <span class="text-danger">*</span></label>
+                        <input type="text" name="last_name" class="form-control" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Phone <span class="text-danger">*</span></label>
+                        <input type="tel" name="phone" class="form-control" placeholder="+254..." required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Email address <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
+                </div>
+
+                <div class="form-check mt-3 mb-5">
+                    <input class="form-check-input" type="checkbox" id="company">
+                    <label class="form-check-label" for="company">Buying as a company? (optional)</label>
+                </div>
+
+                <h5 class="mb-3">Where do we deliver to?</h5>
+                <div class="address-box mb-4">
+                    <span class="text-success fw-bold">ADD NEW ADDRESS</span>
+                </div>
+
+                <div class="form-check mb-4">
+                    <input class="form-check-input" type="checkbox" id="create_account">
+                    <label class="form-check-label" for="create_account">Create an account with us?</label>
+                </div>
+
+                <h5>Additional notes</h5>
+                <label class="small text-muted mb-2">Order notes (optional)</label>
+                <textarea class="form-control" rows="4" placeholder="Any note about your order, e.g. if the beers should be cold..."></textarea>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="p-4 border rounded shadow-sm bg-white">
+                    <h5 class="mb-3">Your delivery</h5>
+                    <p class="small text-muted">Good choice!</p>
+
+                    {% for item in cart.items.all %}
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex align-items-center">
+                            <img src="{{ item.product.image.url }}" style="width: 40px;" class="me-2">
+                            <div>
+                                <div class="small fw-bold">{{ item.product.name }}</div>
+                                <div class="small text-muted">× {{ item.quantity }}</div>
+                            </div>
+                        </div>
+                        <span class="small fw-bold">KSh {{ item.total_price|floatformat:0 }}</span>
+                    </div>
+                    {% endfor %}
+
+                    <hr>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal</span>
+                        <span>KSh {{ subtotal_ex_vat|floatformat:0 }} <small class="text-muted">(ex. vat)</small></span>
+                    </div>
+                    <div class="mb-3">
+                        <div class="fw-bold">Shipment 1</div>
+                        <p class="small text-muted">There are no shipping options available. Please ensure your address is entered correctly.</p>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>VAT</span>
+                        <span>KSh {{ vat_amount|floatformat:0 }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-4">
+                        <span class="fs-4 fw-bold">Total</span>
+                        <span class="fs-4 fw-bold">KSh {{ total|floatformat:0 }}</span>
+                    </div>
+
+                    <div class="payment-option">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="payment" id="mpesa" checked>
+                            <label class="form-check-label fw-bold" for="mpesa">M-Pesa Express</label>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" style="height: 20px; float: right;">
+                        </div>
+                        <p class="small text-muted mt-2">Send an M-Pesa payment request to your phone number.</p>
+                    </div>
+
+                    <p class="very-small text-muted mt-3" style="font-size: 0.7rem;">
+                        By placing an order I confirm that I'm 18 years or older and accept the <a href="#" class="text-warning">terms and conditions</a>.
+                    </p>
+
+                    <button type="submit" class="btn btn-success w-100 py-3 fw-bold mt-2">
+                        <i class="bi bi-lock-fill"></i> Proceed to Payment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

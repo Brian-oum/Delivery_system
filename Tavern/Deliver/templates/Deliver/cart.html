@@ -1,30 +1,124 @@
-{% extends "base.html" %}
-{% block title %}Your Cart{% endblock %}
+{% extends "Deliver/base.html" %}
+{% block title %}Shopping Basket{% endblock %}
 
 {% block content %}
-<h1>Your Cart</h1>
-{% if cart.items.all %}
-    <table>
-        <tr>
-            <th>Product</th>
-            <th>Quantity</th>
-            <th>Total</th>
-        </tr>
-        {% for item in cart.items.all %}
-        <tr>
-            <td>{{ item.product.name }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>KES {{ item.total_price }}</td>
-        </tr>
-        {% endfor %}
-        <tr>
-            <td colspan="2"><strong>Total:</strong></td>
-            <td><strong>KES {{ total }}</strong></td>
-        </tr>
-    </table>
-    <a href="{% url 'checkout' %}">Proceed to Checkout</a>
-{% else %}
-    <p>Your cart is empty.</p>
-    <a href="{% url 'product_list' %}">Browse Products</a>
-{% endif %}
+<style>
+    /* Multi-step indicator */
+    .checkout-stepper { display: flex; justify-content: center; align-items: center; margin-bottom: 3rem; gap: 20px; }
+    .step { display: flex; flex-direction: column; align-items: center; position: relative; color: #adb5bd; font-weight: 600; }
+    .step.active { color: #212529; }
+    .step-circle { width: 32px; height: 32px; border-radius: 50%; background: #dee2e6; color: white; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; z-index: 2; }
+    .step.active .step-circle { background: #343a40; }
+    .step-line { width: 150px; height: 2px; background: #dee2e6; margin-bottom: 25px; }
+    .step-line.filled { background: #28a745; }
+
+    /* Progress bar for free delivery */
+    .delivery-progress { height: 10px; border-radius: 5px; background-color: #e9ecef; }
+    .delivery-progress .progress-bar { background-color: #28a745; }
+
+    /* Summary Table */
+    .summary-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; }
+    .summary-row { display: flex; justify-content: space-between; padding: 15px; border-bottom: 1px solid #dee2e6; }
+    .summary-row:last-child { border-bottom: none; }
+
+    /* Controls */
+    .qty-btn { border: 1px solid #dee2e6; background: white; padding: 2px 10px; border-radius: 4px; cursor: pointer; }
+    .btn-checkout { background-color: #28a745; color: white; border: none; padding: 12px; font-weight: bold; border-radius: 6px; }
+    .btn-checkout:hover { background-color: #218838; color: white; }
+</style>
+
+<div class="container my-5">
+    <div class="checkout-stepper">
+        <div class="step active">
+            <div class="step-circle">1</div>
+            <span>Shopping Basket</span>
+        </div>
+        <div class="step-line filled"></div>
+        <div class="step">
+            <div class="step-circle">2</div>
+            <span>Details and Checkout</span>
+        </div>
+        <div class="step-line"></div>
+        <div class="step">
+            <div class="step-circle">3</div>
+            <span>Confirmation</span>
+        </div>
+    </div>
+
+    {% if cart.items.all %}
+    <div class="row g-5">
+        <div class="col-lg-8">
+            {% for item in cart.items.all %}
+            <div class="d-flex align-items-center mb-4 pb-4 border-bottom">
+                
+                <!-- Remove item -->
+                <form method="post" action="{% url 'remove_from_cart' item.product.slug %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-muted me-3 border-0 bg-transparent">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+
+                <img src="{{ item.product.image.url }}" style="width: 50px; height: 70px; object-fit: contain;">
+                
+                <div class="ms-3 flex-grow-1">
+                    <h6 class="mb-0 fw-semibold">{{ item.product.name }}</h6>
+                </div>
+
+                <!-- Quantity update form -->
+                <form method="post" action="{% url 'update_cart_quantity' item.product.slug %}" class="d-flex align-items-center gap-2 ms-3">
+                    {% csrf_token %}
+                    <button type="submit" name="action" value="decrease" class="qty-btn">-</button>
+                    <span class="px-2">{{ item.quantity }}</span>
+                    <button type="submit" name="action" value="increase" class="qty-btn">+</button>
+                </form>
+
+                <div class="ms-auto text-end" style="min-width: 150px;">
+                    <span class="fw-bold">KSh {{ item.total_price }}</span>
+                    <small class="text-muted d-block" style="font-size: 0.75rem;">(ex. vat)</small>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Free delivery progress -->
+            <div class="mt-5 text-center">
+                <div class="progress delivery-progress mb-3">
+                    <div class="progress-bar" style="width: {{ progress_percent }}%"></div>
+                </div>
+                <p class="small">
+                    Get free delivery for orders over 
+                    <span class="text-success fw-bold">KSh {{ delivery_threshold|floatformat:0 }}</span> 
+                    <a href="{% url 'product_list' %}" class="text-dark fw-bold text-decoration-underline ms-2">Continue Shopping</a>
+                </p>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="summary-box shadow-sm">
+                <div class="summary-row">
+                    <span class="fw-bold">Subtotal</span>
+                    <span>KSh {{ subtotal_ex_vat|floatformat:0 }} <small class="text-muted">(ex. vat)</small></span>
+                </div>
+                <div class="summary-row">
+                    <span class="text-muted">VAT</span>
+                    <span>KSh {{ vat_amount|floatformat:0 }}</span>
+                </div>
+                <div class="summary-row align-items-center">
+                    <span class="fs-4 fw-bold">Total</span>
+                    <span class="fs-4 fw-bold">KSh {{ total|floatformat:0 }}</span>
+                </div>
+            </div>
+
+            <a href="{% url 'checkout' %}" class="btn btn-checkout w-100 mt-3 shadow-sm d-flex align-items-center justify-content-center gap-2">
+                <i class="bi bi-lock-fill"></i> Proceed to checkout
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <h3 class="text-muted">Your basket is empty.</h3>
+        <a href="{% url 'product_list' %}" class="btn btn-success mt-3">Start Shopping</a>
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

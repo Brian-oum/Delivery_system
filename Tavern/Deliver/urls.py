@@ -29,8 +29,11 @@ urlpatterns = [
     # =========================
     # Cart
     # =========================
+    # Cart URLs
     path('cart/', views.view_cart, name='cart'),
-    path('add-to-cart/<int:pk>/', views.add_to_cart, name='add_to_cart'),
+    path('add-to-cart/<slug:slug>/', views.add_to_cart, name='add_to_cart'),
+    path('cart/update/<slug:slug>/', views.update_cart_quantity, name='update_cart_quantity'),
+    path('cart/remove/<slug:slug>/', views.remove_from_cart, name='remove_from_cart'),
 
     # =========================
     # Checkout & Orders
