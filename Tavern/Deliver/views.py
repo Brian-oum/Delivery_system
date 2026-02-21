@@ -10,6 +10,9 @@ from .forms import UserRegistrationForm, CustomLoginForm
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from decimal import Decimal  # Add this import at the top
+from django.db import transaction
+from django.shortcuts import render, redirect
+from django.views.decorators.csrf import csrf_exempt
 
 # =========================
 # Registration View
@@ -212,43 +215,51 @@ def remove_from_cart(request, slug):
 
     return redirect('cart')
 
-from decimal import Decimal
-from django.db import transaction
 
 @login_required
 def checkout(request):
     cart, _ = Cart.objects.get_or_create(user=request.user)
     items = cart.items.all()
 
-    if not items:
+    if not items.exists():
         messages.warning(request, "Your cart is empty.")
         return redirect('product_list')
 
-    # Financial Calculations for the Sidebar Summary
     total = sum(Decimal(item.total_price()) for item in items)
     vat_rate = Decimal('0.16')
     subtotal_ex_vat = total / (Decimal('1') + vat_rate)
     vat_amount = total - subtotal_ex_vat
 
     if request.method == 'POST':
-        # 1. Capture Form Data
+
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         phone = request.POST.get('phone')
         email = request.POST.get('email')
         order_notes = request.POST.get('order_notes', '')
+
+        building_name = request.POST.get('building_name')
+        door_number = request.POST.get('door_number')
+        latitude = request.POST.get('latitude')
+        longitude = request.POST.get('longitude')
+
         payment_method = request.POST.get('payment')
 
-        # 2. Use a transaction to ensure Order + Items are created together
         with transaction.atomic():
+
             order = Order.objects.create(
                 user=request.user,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                email=email,
+                notes=order_notes,
+                building_name=building_name,
+                door_number=door_number,
+                latitude=latitude if latitude else None,
+                longitude=longitude if longitude else None,
                 total_amount=total,
-                status='pending',
-                # Assuming you add these fields to your Order model:
-                # first_name=first_name,
-                # phone=phone,
-                # notes=order_notes
+                status='pending'
             )
 
             for item in items:
@@ -259,19 +270,11 @@ def checkout(request):
                     price=item.product.price
                 )
 
-            # 3. Clear cart AFTER order is created
             items.delete()
 
-        # 4. Handle Payment Logic (e.g., trigger M-Pesa STK Push if selected)
-        if payment_method == 'mpesa':
-            # This is where you'd call your M-Pesa function
-            # initiate_stk_push(phone, total)
-            pass
-
-        # 5. Send Email
         send_mail(
             subject="Order Confirmation - Haris Tavern",
-            message=f"Hi {first_name}, Your order #{order.id} has been placed.",
+            message=f"Hi {first_name}, your order #{order.id} has been placed successfully.",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
             fail_silently=True,
@@ -280,7 +283,6 @@ def checkout(request):
         messages.success(request, "Order placed successfully!")
         return redirect('orders')
 
-    # GET request: Just show the form and summary
     context = {
         'cart': cart,
         'items': items,
@@ -288,7 +290,17 @@ def checkout(request):
         'subtotal_ex_vat': subtotal_ex_vat,
         'vat_amount': vat_amount,
     }
+
     return render(request, 'Deliver/checkout.html', context)
+
+def mpesa_checkout(request):
+    if request.method == 'POST':
+        phone = request.POST.get('phone')
+        # Here you would call your M-Pesa API to initiate the payment
+        # For example: initiate_mpesa_payment(phone, amount, order_id)
+        # Then redirect to a confirmation page
+        return redirect('mpesa_confirmation')
+    return render(request, 'Deliver/mpesa_checkout.html')
 
 @login_required
 def order_history(request):

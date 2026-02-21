@@ -1,0 +1,20 @@
+{% extends "Deliver/base.html" %}
+{% block title %}M-Pesa Express Checkout{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2>M-Pesa Express Checkout</h2>
+    <p>Please enter your phone number and click the button below. You’ll be prompted on your phone to enter your M-PESA PIN.</p>
+
+    <form method="POST" action="#">
+        {% csrf_token %}
+        <div class="mb-3">
+            <label for="phone" class="form-label">Phone Number</label>
+            <input type="tel" class="form-control" name="phone" id="phone" placeholder="2547XXXXXXXX" required>
+        </div>
+
+        <button type="submit" class="btn btn-success">Send Payment Request to phone</button>
+        <a href="{% url 'checkout' %}" class="btn btn-secondary">Change Payment Method</a>
+    </form>
+</div>
+{% endblock %}

@@ -2,8 +2,11 @@
 {% block title %}Checkout{% endblock %}
 
 {% block content %}
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
 <style>
-    /* Reuse Stepper Styles from Cart - Set Step 2 to Active */
+    /* --- Keep your existing General & Sidebar Styles --- */
     .checkout-stepper { display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; gap: 20px; }
     .step { display: flex; flex-direction: column; align-items: center; color: #adb5bd; font-weight: 600; }
     .step.active { color: #212529; }
@@ -12,10 +15,42 @@
     .step-line { width: 150px; height: 2px; background: #dee2e6; margin-bottom: 25px; }
     .step-line.filled { background: #28a745; }
 
-    .login-banner { background-color: #3498db; color: white; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-    .address-box { border: 2px dashed #dee2e6; padding: 40px; text-align: center; border-radius: 5px; cursor: pointer; }
-    .address-box:hover { border-color: #28a745; color: #28a745; }
-    .payment-option { border: 1px solid #dee2e6; padding: 15px; border-radius: 5px; margin-bottom: 10px; }
+    #mapModal .modal-dialog { position: fixed; margin: 0; width: 100%; max-width: 420px; height: 100%; left: 0; top: 0; transform: translate3d(-100%, 0, 0); transition: transform 0.3s ease-in-out; z-index: 1055; }
+    #mapModal.show .modal-dialog { transform: translate3d(0, 0, 0); }
+    #mapModal .modal-content { height: 100%; display: flex; flex-direction: column; border-radius: 0; border: none; }
+    #mapModal .modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex: 1; overflow-y: auto; }
+
+    #map { min-height: 300px; width: 100%; border-radius: 8px; border: 1px solid #ddd; }
+    .modal-input { padding: 12px; border: 1px solid #ddd; border-radius: 4px; width: 100%; }
+    .btn-save-address { background-color: #5cb85c; color: white; width: 100%; padding: 20px; border: none; font-weight: bold; text-transform: uppercase; }
+
+    /* --- NEW: Autocomplete Search Styles --- */
+    .search-container { position: relative; width: 100%; }
+    #address-results {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-top: none;
+        z-index: 2000;
+        max-height: 200px;
+        overflow-y: auto;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-radius: 0 0 4px 4px;
+        display: none;
+    }
+    .result-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        font-size: 0.9rem;
+    }
+    .result-item:hover { background-color: #f8f9fa; }
+    
+    .sticky-summary { position: sticky; top: 20px; }
+    .order-items-scroll { max-height: 300px; overflow-y: auto; }
 </style>
 
 <div class="container my-5">
@@ -27,113 +62,203 @@
         <div class="step"><div class="step-circle">3</div><span>Confirmation</span></div>
     </div>
 
-    <div class="login-banner">
-        Returning customer? <a href="{% url 'login' %}" class="text-white fw-bold">Click here to login</a>
-    </div>
-
-    <p>Have a coupon? Cool! <a href="#" class="text-dark fw-bold">Redeem it here.</a></p>
-
     <form method="POST">
         {% csrf_token %}
         <div class="row g-5">
             <div class="col-lg-7">
-                <h2 class="fw-light mb-4">Your glass is almost full...</h2>
-                <p class="text-muted">Fill your details here ↓</p>
-
+                <h4 class="mb-4">Billing Details</h4>
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">First name <span class="text-danger">*</span></label>
-                        <input type="text" name="first_name" class="form-control" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Last name <span class="text-danger">*</span></label>
-                        <input type="text" name="last_name" class="form-control" required>
-                    </div>
+                    <div class="col-md-6"><label class="form-label">First Name *</label><input type="text" name="first_name" class="form-control" required></div>
+                    <div class="col-md-6"><label class="form-label">Last Name *</label><input type="text" name="last_name" class="form-control" required></div>
+                    <div class="col-12"><label class="form-label">Phone *</label><input type="tel" name="phone" class="form-control" required></div>
+                    <div class="col-12"><label class="form-label">Email *</label><input type="email" name="email" class="form-control" required></div>
+
                     <div class="col-12">
-                        <label class="form-label">Phone <span class="text-danger">*</span></label>
-                        <input type="tel" name="phone" class="form-control" placeholder="+254..." required>
+                        <label class="form-label">Delivery Location *</label>
+                        <div class="input-group">
+                            <input type="text" id="location_name" name="location_name" class="form-control bg-light" placeholder="Select from map" readonly required>
+                            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#mapModal">Select from Map</button>
+                        </div>
+                        <input type="hidden" name="latitude" id="latitude">
+                        <input type="hidden" name="longitude" id="longitude">
                     </div>
-                    <div class="col-12">
-                        <label class="form-label">Email address <span class="text-danger">*</span></label>
-                        <input type="email" name="email" class="form-control" required>
+
+                    <div class="col-12 mt-4">
+                        <label class="form-label">Order Notes (Optional)</label>
+                        <textarea name="order_notes" class="form-control" rows="3"></textarea>
                     </div>
                 </div>
-
-                <div class="form-check mt-3 mb-5">
-                    <input class="form-check-input" type="checkbox" id="company">
-                    <label class="form-check-label" for="company">Buying as a company? (optional)</label>
-                </div>
-
-                <h5 class="mb-3">Where do we deliver to?</h5>
-                <div class="address-box mb-4">
-                    <span class="text-success fw-bold">ADD NEW ADDRESS</span>
-                </div>
-
-                <div class="form-check mb-4">
-                    <input class="form-check-input" type="checkbox" id="create_account">
-                    <label class="form-check-label" for="create_account">Create an account with us?</label>
-                </div>
-
-                <h5>Additional notes</h5>
-                <label class="small text-muted mb-2">Order notes (optional)</label>
-                <textarea class="form-control" rows="4" placeholder="Any note about your order, e.g. if the beers should be cold..."></textarea>
             </div>
 
             <div class="col-lg-5">
-                <div class="p-4 border rounded shadow-sm bg-white">
-                    <h5 class="mb-3">Your delivery</h5>
-                    <p class="small text-muted">Good choice!</p>
+                <div class="p-4 border rounded shadow-sm bg-white sticky-summary">
+                    <h5 class="mb-4 fw-bold">Your delivery</h5>
 
-                    {% for item in cart.items.all %}
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <div class="d-flex align-items-center">
-                            <img src="{{ item.product.image.url }}" style="width: 40px;" class="me-2">
-                            <div>
-                                <div class="small fw-bold">{{ item.product.name }}</div>
-                                <div class="small text-muted">× {{ item.quantity }}</div>
+                    <div class="order-items-scroll pe-2">
+                        {% for item in items %}
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div class="d-flex align-items-center">
+                                <img src="{{ item.product.image.url }}" style="width: 45px; height: 45px; object-fit: cover; border-radius: 5px;" class="me-3">
+                                <div>
+                                    <div class="small fw-bold">{{ item.product.name }}</div>
+                                    <div class="small text-muted">× {{ item.quantity }}</div>
+                                </div>
                             </div>
+                            <span class="small fw-bold">KSh {{ item.total_price|floatformat:0 }}</span>
                         </div>
-                        <span class="small fw-bold">KSh {{ item.total_price|floatformat:0 }}</span>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
 
-                    <hr>
+                    <hr class="my-4">
+
                     <div class="d-flex justify-content-between mb-2">
-                        <span>Subtotal</span>
-                        <span>KSh {{ subtotal_ex_vat|floatformat:0 }} <small class="text-muted">(ex. vat)</small></span>
+                        <span class="text-muted">Subtotal (ex. VAT)</span>
+                        <span>KSh {{ subtotal_ex_vat|floatformat:0 }}</span>
                     </div>
-                    <div class="mb-3">
-                        <div class="fw-bold">Shipment 1</div>
-                        <p class="small text-muted">There are no shipping options available. Please ensure your address is entered correctly.</p>
-                    </div>
+
                     <div class="d-flex justify-content-between mb-2">
-                        <span>VAT</span>
+                        <span class="text-muted">VAT (16%)</span>
                         <span>KSh {{ vat_amount|floatformat:0 }}</span>
                     </div>
+
                     <div class="d-flex justify-content-between mb-4">
                         <span class="fs-4 fw-bold">Total</span>
-                        <span class="fs-4 fw-bold">KSh {{ total|floatformat:0 }}</span>
+                        <span class="fs-4 fw-bold text-success">KSh {{ total|floatformat:0 }}</span>
                     </div>
 
-                    <div class="payment-option">
+                    <div class="payment-option border p-3 rounded mb-3 bg-light">
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payment" id="mpesa" checked>
+                            <input class="form-check-input" type="radio" name="payment" value="mpesa" id="mpesa" checked>
                             <label class="form-check-label fw-bold" for="mpesa">M-Pesa Express</label>
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" style="height: 20px; float: right;">
                         </div>
-                        <p class="small text-muted mt-2">Send an M-Pesa payment request to your phone number.</p>
+                        <p class="small text-muted mt-1 mb-0">Pay via M-Pesa push request on your phone.</p>
                     </div>
 
-                    <p class="very-small text-muted mt-3" style="font-size: 0.7rem;">
-                        By placing an order I confirm that I'm 18 years or older and accept the <a href="#" class="text-warning">terms and conditions</a>.
+                    <p style="font-size: 0.7rem;" class="text-muted mb-3">
+                        By placing an order, I confirm I am 18+ and accept the terms and conditions.
                     </p>
 
-                    <button type="submit" class="btn btn-success w-100 py-3 fw-bold mt-2">
-                        <i class="bi bi-lock-fill"></i> Proceed to Payment
-                    </button>
+                    <a href="{% url 'mpesa_checkout' %}" class="btn btn-success w-100 py-3 fw-bold">
+                     PROCEED TO PAYMENT
+                    </a>
                 </div>
             </div>
         </div>
     </form>
 </div>
+
+<div class="modal fade" id="mapModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <button type="button" class="btn-close fs-4" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h5 class="fw-bold mb-3">Add your location</h5>
+                
+                <div class="search-container">
+                    <input type="text" id="modal_search" class="modal-input" placeholder="Search building, street, or area...">
+                    <div id="address-results"></div>
+                </div>
+                
+                <div id="map"></div>
+                
+                <input type="text" id="modal_door" class="modal-input" placeholder="Door / Flat no. (Optional)">
+            </div>
+            <div class="modal-footer border-0 p-0">
+                <button type="button" class="btn-save-address" id="saveLocationBtn">SAVE ADDRESS & PROCEED</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+let map;
+let marker;
+const mapModal = document.getElementById('mapModal');
+const searchInput = document.getElementById('modal_search');
+const resultsContainer = document.getElementById('address-results');
+
+mapModal.addEventListener('shown.bs.modal', function () {
+    if (!map) {
+        map = L.map('map').setView([-1.286389, 36.817223], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        map.on('click', function(e) {
+            updateMarker(e.latlng.lat, e.latlng.lng);
+        });
+    }
+    setTimeout(() => { map.invalidateSize(); }, 200);
+});
+
+function updateMarker(lat, lng) {
+    const latlng = [lat, lng];
+    if (marker) {
+        marker.setLatLng(latlng);
+    } else {
+        marker = L.marker(latlng).addTo(map);
+    }
+    map.setView(latlng, 17);
+    document.getElementById('latitude').value = lat;
+    document.getElementById('longitude').value = lng;
+}
+
+// --- Autocomplete Logic ---
+let debounceTimer;
+searchInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    const query = this.value;
+
+    if (query.length < 3) {
+        resultsContainer.style.display = 'none';
+        return;
+    }
+
+    debounceTimer = setTimeout(() => {
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=ke`)
+            .then(response => response.json())
+            .then(data => {
+                resultsContainer.innerHTML = '';
+                if (data.length > 0) {
+                    resultsContainer.style.display = 'block';
+                    data.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'result-item';
+                        div.textContent = item.display_name;
+                        div.onclick = () => {
+                            searchInput.value = item.display_name;
+                            updateMarker(parseFloat(item.lat), parseFloat(item.lon));
+                            resultsContainer.style.display = 'none';
+                        };
+                        resultsContainer.appendChild(div);
+                    });
+                } else {
+                    resultsContainer.style.display = 'none';
+                }
+            });
+    }, 300);
+});
+
+// Close results when clicking outside
+document.addEventListener('click', (e) => {
+    if (e.target !== searchInput) resultsContainer.style.display = 'none';
+});
+
+document.getElementById('saveLocationBtn').addEventListener('click', function() {
+    const address = searchInput.value;
+    const door = document.getElementById('modal_door').value;
+    const lat = document.getElementById('latitude').value;
+
+    if (!lat) {
+        alert("Please select a location on the map.");
+        return;
+    }
+
+    document.getElementById('location_name').value = (address + (door ? ", " + door : "")) || "Location Set";
+    bootstrap.Modal.getInstance(mapModal).hide();
+});
+</script>
+
 {% endblock %}

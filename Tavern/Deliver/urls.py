@@ -40,6 +40,7 @@ urlpatterns = [
     # =========================
     path('checkout/', views.checkout, name='checkout'),
     path('orders/', views.order_history, name='orders'),
+    path('checkout/mpesa/', views.mpesa_checkout, name='mpesa_checkout'),
 
     # =========================
     # Ratings
