@@ -1,0 +1,40 @@
+{% extends "Deliver/base.html" %}
+{% block title %}Payment Pending{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <h2>Payment Pending</h2>
+    <p>Please complete the payment on your phone. Do not refresh this page.</p>
+
+    <p><strong>Status:</strong> <span id="status-text">{{ order.status|capfirst }}</span></p>
+</div>
+
+<script>
+function checkStatus() {
+    fetch("{% url 'check_payment_status' order.id %}")
+        .then(response => response.json())
+        .then(data => {
+            const statusText = document.getElementById("status-text");
+            statusText.textContent = data.status.replace("_", " ");
+
+            if (data.status === 'paid') {
+                statusText.textContent = "Payment Completed!";
+                setTimeout(() => {
+                    window.location.href = "{% url 'orders' %}";
+                }, 1000);
+            } else if (data.status === 'payment_failed') {
+                statusText.textContent = "Payment Failed!";
+            } else {
+                setTimeout(checkStatus, 3000);
+            }
+        })
+        .catch(err => {
+            console.error("Error checking payment status:", err);
+            setTimeout(checkStatus, 5000);
+        });
+}
+
+// Start polling
+checkStatus();
+</script>
+{% endblock %}

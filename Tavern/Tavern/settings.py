@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-!j*2j4x_mqd109!lvk@ogrk9c!w++6(34tr0io@gf+!q2bhcb#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -123,3 +123,11 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ==============================
+# INTASEND SETTINGS
+# ==============================
+INTASEND_PUBLIC_KEY = "ISPubKey_test_ed5728d6-4d41-4e5e-bffe-9b53395faa5c"
+INTASEND_SECRET_KEY = "ISSecretKey_test_4ca51a6b-e866-42be-a53a-21b89df2d055"
+INTASEND_TEST_MODE = True  # Change to False in production
+INTASEND_WEBHOOK_URL = "https://progressional-priggishly-marjory.ngrok-free.dev/intasend/webhook/"

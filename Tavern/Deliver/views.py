@@ -1,18 +1,20 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Sum, Count, Avg
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
-from .models import  *
+from .models import *
 from .forms import UserRegistrationForm, CustomLoginForm
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from decimal import Decimal  # Add this import at the top
+from decimal import Decimal
 from django.db import transaction
-from django.shortcuts import render, redirect
+import requests
+import uuid
+import json
 from django.views.decorators.csrf import csrf_exempt
+from django.http import HttpResponse, JsonResponse
 
 # =========================
 # Registration View
@@ -30,9 +32,8 @@ def register(request):
         form = UserRegistrationForm()
     return render(request, 'Deliver/register.html', {'form': form})
 
-
 # =========================
-# Login View (username or email)
+# Login View
 # =========================
 def user_login(request):
     if request.method == "POST":
@@ -41,7 +42,6 @@ def user_login(request):
             username_or_email = form.cleaned_data['username_or_email']
             password = form.cleaned_data['password']
 
-            # Try to get username from email
             try:
                 user_obj = User.objects.get(email=username_or_email)
                 username = user_obj.username
@@ -60,7 +60,6 @@ def user_login(request):
 
     return render(request, 'Deliver/login.html', {'form': form})
 
-
 # =========================
 # Logout View
 # =========================
@@ -70,12 +69,33 @@ def user_logout(request):
     return redirect('login')
 
 
+# =========================
+# Helper: get cart (guest or user)
+# =========================
+def get_cart(request):
+    if request.user.is_authenticated:
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+    else:
+        cart_id = request.session.get('cart_id')
+        if cart_id:
+            cart = Cart.objects.filter(id=cart_id).first()
+            if not cart:
+                cart = Cart.objects.create()
+                request.session['cart_id'] = cart.id
+        else:
+            cart = Cart.objects.create()
+            request.session['cart_id'] = cart.id
+    return cart
+
+
+# =========================
+# Product Views
+# =========================
 def product_list(request, category_slug=None, subcategory_slug=None):
     products = Product.objects.all()
     category = None
     subcategory = None
     
-    # Check for the view_all filter
     view_filter = request.GET.get('filter')
 
     if category_slug:
@@ -90,13 +110,11 @@ def product_list(request, category_slug=None, subcategory_slug=None):
     new_products = None
 
     if not category and not subcategory:
-        # If user clicked "View All" for popular
         if view_filter == 'popular':
             popular_products = Product.objects.filter(feature='popular')
-            new_products = None  # Hide new products
-            products = None      # Hide main grid
+            new_products = None
+            products = None
         else:
-            # Standard homepage view
             popular_products = Product.objects.filter(feature='popular')[:6]
             new_products = Product.objects.filter(feature='new').order_by('-created_at')[:6]
 
@@ -106,10 +124,9 @@ def product_list(request, category_slug=None, subcategory_slug=None):
         'subcategory': subcategory,
         'popular_products': popular_products,
         'new_products': new_products,
-        'view_filter': view_filter, # Send to template to toggle UI
+        'view_filter': view_filter,
     }
 
-    return render(request, 'Deliver/product_list.html', context)
     return render(request, 'Deliver/product_list.html', context)
 
 def product_detail(request, slug):
@@ -123,16 +140,15 @@ def product_detail(request, slug):
         'average_rating': average_rating
     })
 
-@login_required
+
+# =========================
+# Cart Views (Guests & Users)
+# =========================
 def add_to_cart(request, slug):
     product = get_object_or_404(Product, slug=slug)
-    cart, _ = Cart.objects.get_or_create(user=request.user)
+    cart = get_cart(request)
 
-    cart_item, created = CartItem.objects.get_or_create(
-        cart=cart,
-        product=product
-    )
-
+    cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
     if not created:
         cart_item.quantity += 1
         cart_item.save()
@@ -140,15 +156,12 @@ def add_to_cart(request, slug):
     messages.success(request, f"{product.name} added to cart.")
     return redirect('cart')
 
-# -----------------------------
-# View cart
-# -----------------------------
-@login_required
-def view_cart(request):
-    cart, _ = Cart.objects.get_or_create(user=request.user)
 
-    # Ensure total is Decimal
-    total = sum(Decimal(item.total_price()) for item in cart.items.all())
+def view_cart(request):
+    cart = get_cart(request)
+    items = cart.items.all()
+
+    total = sum(Decimal(item.total_price()) for item in items)
     vat_rate = Decimal('0.16')
     delivery_threshold = Decimal('15000')
 
@@ -160,6 +173,7 @@ def view_cart(request):
 
     context = {
         'cart': cart,
+        'items': items,
         'total': total,
         'subtotal_ex_vat': subtotal_ex_vat,
         'vat_amount': vat_amount,
@@ -170,18 +184,11 @@ def view_cart(request):
     return render(request, 'Deliver/cart.html', context)
 
 
-# -----------------------------
-# Update quantity (+/-)
-# -----------------------------
-@login_required
 def update_cart_quantity(request, slug):
     if request.method == 'POST':
         action = request.POST.get('action')
-        cart_item = get_object_or_404(
-            CartItem,
-            cart__user=request.user,
-            product__slug=slug 
-        )
+        cart = get_cart(request)
+        cart_item = get_object_or_404(CartItem, cart=cart, product__slug=slug)
 
         if action == 'increase':
             cart_item.quantity += 1
@@ -199,26 +206,22 @@ def update_cart_quantity(request, slug):
     return redirect('cart')
 
 
-# -----------------------------
-# Remove item from cart
-# -----------------------------
-@login_required
 def remove_from_cart(request, slug):
     if request.method == 'POST':
-        cart_item = get_object_or_404(
-            CartItem,
-            cart__user=request.user,
-            slug=slug
-        )
+        cart = get_cart(request)
+        cart_item = get_object_or_404(CartItem, cart=cart, product__slug=slug)
         cart_item.delete()
         messages.success(request, f'{cart_item.product.name} removed from cart.')
 
     return redirect('cart')
 
 
-@login_required
+# =========================
+# Checkout (Guests & Logged-in Users with IntaSend)
+# =========================
+# views.py
 def checkout(request):
-    cart, _ = Cart.objects.get_or_create(user=request.user)
+    cart = get_cart(request)
     items = cart.items.all()
 
     if not items.exists():
@@ -231,7 +234,7 @@ def checkout(request):
     vat_amount = total - subtotal_ex_vat
 
     if request.method == 'POST':
-
+        # Collect user info
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         phone = request.POST.get('phone')
@@ -240,15 +243,14 @@ def checkout(request):
 
         building_name = request.POST.get('building_name')
         door_number = request.POST.get('door_number')
-        latitude = request.POST.get('latitude')
-        longitude = request.POST.get('longitude')
+        latitude = request.POST.get('latitude') or None
+        longitude = request.POST.get('longitude') or None
 
         payment_method = request.POST.get('payment')
 
         with transaction.atomic():
-
             order = Order.objects.create(
-                user=request.user,
+                user=request.user if request.user.is_authenticated else None,
                 first_name=first_name,
                 last_name=last_name,
                 phone=phone,
@@ -256,8 +258,8 @@ def checkout(request):
                 notes=order_notes,
                 building_name=building_name,
                 door_number=door_number,
-                latitude=latitude if latitude else None,
-                longitude=longitude if longitude else None,
+                latitude=latitude,
+                longitude=longitude,
                 total_amount=total,
                 status='pending'
             )
@@ -270,16 +272,17 @@ def checkout(request):
                     price=item.product.price
                 )
 
+            # Clear guest session cart
+            if not request.user.is_authenticated:
+                del request.session['cart_id']
+
             items.delete()
 
-        send_mail(
-            subject="Order Confirmation - Haris Tavern",
-            message=f"Hi {first_name}, your order #{order.id} has been placed successfully.",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=True,
-        )
+        # Redirect to IntaSend payment page if chosen
+        if payment_method == 'intasend':
+            return redirect('intasend_payment', order_id=order.id)
 
+        # Otherwise, handle other payment methods (e.g., M-Pesa)
         messages.success(request, "Order placed successfully!")
         return redirect('orders')
 
@@ -293,22 +296,124 @@ def checkout(request):
 
     return render(request, 'Deliver/checkout.html', context)
 
-def mpesa_checkout(request):
-    if request.method == 'POST':
-        phone = request.POST.get('phone')
-        # Here you would call your M-Pesa API to initiate the payment
-        # For example: initiate_mpesa_payment(phone, amount, order_id)
-        # Then redirect to a confirmation page
-        return redirect('mpesa_confirmation')
-    return render(request, 'Deliver/mpesa_checkout.html')
+#
 
-@login_required
+def intasend_payment_view(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+
+    if request.method == "POST":
+        phone = request.POST.get("phone")
+        if not phone:
+            messages.error(request, "Phone number is required to initiate payment.")
+            return redirect("intasend_payment", order_id=order.id)
+
+        # 1. Prepare M-Pesa STK Push Payload
+        # Note: 'api_ref' is used for tracking and 'phone_number' is the expected key
+        payload = {
+            "amount": float(order.total_amount),
+            "phone_number": phone,
+            "currency": "KES",
+            "api_ref": f"ORDER-{order.id}", 
+            "callback_url": request.build_absolute_uri("/intasend/webhook/"),
+        }
+
+        headers = {
+            "Authorization": f"Bearer {settings.INTASEND_SECRET_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+            # 2. Correct Endpoint for Backend M-Pesa STK Push
+            response = requests.post(
+                "https://sandbox.intasend.com/api/v1/payment/mpesa-stk-push/",
+                json=payload,
+                headers=headers,
+                timeout=15
+            )
+
+            # Debugging (Check your terminal)
+            print(f"Status Code: {response.status_code}")
+            
+            # 3. Safe JSON parsing
+            try:
+                data = response.json()
+            except ValueError:
+                # If we get here, it means IntaSend sent back an HTML error page
+                messages.error(request, "Payment gateway returned an invalid response. Please try again later.")
+                return redirect("intasend_payment", order_id=order.id)
+
+            # 4. Handle Response
+            if response.status_code in [200, 201, 202]:
+                order.status = "payment_initiated"
+                order.save()
+                
+                messages.info(request, "Please check your phone for the M-Pesa STK prompt.")
+                return redirect("payment_wait", order_id=order.id)
+            else:
+                # Catch API errors (e.g., invalid phone format, insufficient balance error)
+                error_msg = data.get("errors", "Request failed. Verify your phone number.")
+                messages.error(request, f"Payment error: {error_msg}")
+                return redirect("intasend_payment", order_id=order.id)
+
+        except requests.RequestException as e:
+            messages.error(request, f"Connection to payment gateway failed: {str(e)}")
+            return redirect("intasend_payment", order_id=order.id)
+
+    return render(request, "Deliver/mpesa_checkout.html", {"order": order})
+
+def check_payment_status(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    return JsonResponse({"status": order.status})
+    
+def payment_wait(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    return render(request, 'Deliver/payment_wait.html', {'order': order})
+
+@csrf_exempt
+def intasend_webhook(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            # IntaSend usually sends 'invoice_id' or 'api_ref'
+            reference = data.get('api_ref') 
+            state = data.get('state') # IntaSend often uses 'state': 'COMPLETE'
+
+            if reference and reference.startswith("ORDER-"):
+                order_id = int(reference.split('-')[1])
+                order = Order.objects.get(id=order_id)
+
+                if state == 'COMPLETE':
+                    order.status = 'paid'
+                elif state == 'FAILED':
+                    order.status = 'payment_failed'
+                order.save()
+            
+            return HttpResponse(status=200) # Tell IntaSend "Got it!"
+        except Exception as e:
+            print(f"Webhook error: {e}")
+            return HttpResponse(status=400) # Something went wrong
+            
+    return HttpResponse(status=405) # Method not allowed
+# =========================
+# Order history (logged in only)
+# =========================
 def order_history(request):
+    if not request.user.is_authenticated:
+        messages.warning(request, "Please log in to view your orders.")
+        return redirect('login')
+
     orders = Order.objects.filter(user=request.user).order_by('-created_at')
     return render(request, 'Deliver/orders.html', {'orders': orders})
 
-@login_required
+
+# =========================
+# Ratings (logged in only)
+# =========================
 def rate_product(request, pk):
+    if not request.user.is_authenticated:
+        messages.warning(request, "Please log in to rate products.")
+        return redirect('login')
+
     product = get_object_or_404(Product, pk=pk)
 
     if request.method == "POST":
@@ -323,12 +428,16 @@ def rate_product(request, pk):
         )
 
         messages.success(request, "Thank you for your feedback!")
-        return redirect('product_detail', pk=pk)
+        return redirect('product_detail', slug=product.slug)
 
     return render(request, 'Deliver/rate_product.html', {'product': product})
 
-@login_required
+
 def rate_website(request):
+    if not request.user.is_authenticated:
+        messages.warning(request, "Please log in to rate the website.")
+        return redirect('login')
+
     if request.method == "POST":
         rating = int(request.POST.get('rating'))
         comment = request.POST.get('comment')
@@ -344,6 +453,10 @@ def rate_website(request):
 
     return render(request, 'Deliver/rate_website.html')
 
+
+# =========================
+# Promotions
+# =========================
 def promotions_list(request):
     promotions = Promotion.objects.filter(
         active=True,
@@ -351,6 +464,4 @@ def promotions_list(request):
         end_date__gte=timezone.now()
     )
 
-    return render(request, 'Deliver/promotions.html', {
-        'promotions': promotions
-    })
+    return render(request, 'Deliver/promotions.html', {'promotions': promotions})
