@@ -40,7 +40,11 @@ urlpatterns = [
     # =========================
     path('checkout/', views.checkout, name='checkout'),
     path('orders/', views.order_history, name='orders'),
-    path('checkout/mpesa/', views.mpesa_checkout, name='mpesa_checkout'),
+    #path('checkout/mpesa/', views.mpesa_checkout, name='mpesa_checkout'),
+    path('checkout/intasend/<int:order_id>/', views.intasend_payment_view, name='intasend_payment'),
+    path('intasend/webhook/', views.intasend_webhook, name='intasend_webhook'),
+    path('checkout/intasend/status/<int:order_id>/', views.check_payment_status, name='check_payment_status'),
+    path('checkout/payment-wait/<int:order_id>/', views.payment_wait, name='payment_wait'),
 
     # =========================
     # Ratings

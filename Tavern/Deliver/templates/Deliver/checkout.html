@@ -48,7 +48,7 @@
         font-size: 0.9rem;
     }
     .result-item:hover { background-color: #f8f9fa; }
-    
+
     .sticky-summary { position: sticky; top: 20px; }
     .order-items-scroll { max-height: 300px; overflow-y: auto; }
 </style>
@@ -62,16 +62,28 @@
         <div class="step"><div class="step-circle">3</div><span>Confirmation</span></div>
     </div>
 
-    <form method="POST">
+    <form method="POST" action="{% url 'checkout' %}">
         {% csrf_token %}
         <div class="row g-5">
             <div class="col-lg-7">
                 <h4 class="mb-4">Billing Details</h4>
                 <div class="row g-3">
-                    <div class="col-md-6"><label class="form-label">First Name *</label><input type="text" name="first_name" class="form-control" required></div>
-                    <div class="col-md-6"><label class="form-label">Last Name *</label><input type="text" name="last_name" class="form-control" required></div>
-                    <div class="col-12"><label class="form-label">Phone *</label><input type="tel" name="phone" class="form-control" required></div>
-                    <div class="col-12"><label class="form-label">Email *</label><input type="email" name="email" class="form-control" required></div>
+                    <div class="col-md-6">
+                        <label class="form-label">First Name *</label>
+                        <input type="text" name="first_name" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Last Name *</label>
+                        <input type="text" name="last_name" class="form-control" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Phone *</label>
+                        <input type="tel" name="phone" class="form-control" required>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Email *</label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
 
                     <div class="col-12">
                         <label class="form-label">Delivery Location *</label>
@@ -81,6 +93,8 @@
                         </div>
                         <input type="hidden" name="latitude" id="latitude">
                         <input type="hidden" name="longitude" id="longitude">
+                        <input type="hidden" name="building_name" id="building_name">
+                        <input type="hidden" name="door_number" id="door_number">
                     </div>
 
                     <div class="col-12 mt-4">
@@ -128,19 +142,19 @@
 
                     <div class="payment-option border p-3 rounded mb-3 bg-light">
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payment" value="mpesa" id="mpesa" checked>
-                            <label class="form-check-label fw-bold" for="mpesa">M-Pesa Express</label>
+                            <input class="form-check-input" type="radio" name="payment" value="intasend" id="intasend" checked>
+                            <label class="form-check-label fw-bold" for="intasend">Pay with IntaSend</label>
                         </div>
-                        <p class="small text-muted mt-1 mb-0">Pay via M-Pesa push request on your phone.</p>
+                        <p class="small text-muted mt-1 mb-0">You will be redirected to IntaSend to complete payment securely.</p>
                     </div>
 
                     <p style="font-size: 0.7rem;" class="text-muted mb-3">
                         By placing an order, I confirm I am 18+ and accept the terms and conditions.
                     </p>
 
-                    <a href="{% url 'mpesa_checkout' %}" class="btn btn-success w-100 py-3 fw-bold">
-                     PROCEED TO PAYMENT
-                    </a>
+                    <button type="submit" class="btn btn-success w-100 py-3 fw-bold">
+                        PROCEED TO PAYMENT
+                    </button>
                 </div>
             </div>
         </div>
@@ -155,14 +169,14 @@
             </div>
             <div class="modal-body">
                 <h5 class="fw-bold mb-3">Add your location</h5>
-                
+
                 <div class="search-container">
                     <input type="text" id="modal_search" class="modal-input" placeholder="Search building, street, or area...">
                     <div id="address-results"></div>
                 </div>
-                
+
                 <div id="map"></div>
-                
+
                 <input type="text" id="modal_door" class="modal-input" placeholder="Door / Flat no. (Optional)">
             </div>
             <div class="modal-footer border-0 p-0">
@@ -171,6 +185,7 @@
         </div>
     </div>
 </div>
+
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
