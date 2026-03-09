@@ -1,29 +1,183 @@
 {% extends "Deliver/base.html" %}
-{% block title %}{{ product.name }}{% endblock %}
+{% load static %}
 
 {% block content %}
-<div class="product-detail">
-    <img src="{{ product.image.url }}" alt="{{ product.name }}">
-    <h1>{{ product.name }}</h1>
-    <p>Price: KES {{ product.price }}</p>
-    <p>{{ product.description }}</p>
-    <p>Average Rating: {{ average_rating|default:"Not rated yet" }}</p>
+<style>
+    .breadcrumb a { color: #6c757d; text-decoration: none; font-size: 0.9rem; }
+    .product-img-container { background: #fff; border-radius: 8px; padding: 20px; }
+    .product-main-img { max-height: 500px; width: 100%; object-fit: contain; }
+    
+    /* Tab Styling */
+    .nav-tabs { border-bottom: 2px solid #dee2e6; }
+    .nav-tabs .nav-link { color: #495057; border: none; font-weight: 500; padding: 10px 20px; }
+    .nav-tabs .nav-link.active { color: #d63384; border-bottom: 3px solid #d63384; background: none; }
+    
+    .spec-row { display: flex; padding: 12px 0; border-bottom: 1px solid #eee; }
+    .spec-label { width: 250px; font-weight: 600; color: #333; }
+    .product-image-wrapper {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    height: 550px;              /* controls image area height */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
 
-    <form action="{% url 'add_to_cart' product.pk %}" method="post">
-        {% csrf_token %}
-        <button type="submit">Add to Cart</button>
-    </form>
+.product-main-img {
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+    transition: transform 0.4s ease;
+}
 
-    <h2>Ratings & Reviews</h2>
-    {% for rating in ratings %}
-        <div class="rating">
-            <p>{{ rating.user.username }}: {{ rating.rating }} / 5</p>
-            <p>{{ rating.comment }}</p>
+/* Zoom effect */
+.product-main-img:hover {
+    transform: scale(1.08);
+}
+</style>
+
+<div class="container my-5">
+
+    <!-- 🔹 Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item">
+                <a href="/">Home</a>
+            </li>
+
+            {% if product.category %}
+            <li class="breadcrumb-item">
+                <a href="{% url 'products_by_category' product.category.slug %}">
+                    {{ product.category.name }}
+                </a>
+            </li>
+            {% endif %}
+
+            {% if product.subcategory %}
+            <li class="breadcrumb-item">
+                <a href="{% url 'products_by_subcategory' product.category.slug product.subcategory.slug %}">
+                    {{ product.subcategory.name }}
+                </a>
+            </li>
+            {% endif %}
+
+            <li class="breadcrumb-item active">
+                {{ product.name }}
+            </li>
+        </ol>
+    </nav>
+
+    <div class="row g-5">
+
+        <!-- 🔹 Product Image -->
+       <div class="col-md-6">
+            <div class="product-image-wrapper">
+                <img src="{{ product.image.url }}"
+                   class="product-main-img"
+                   alt="{{ product.name }}">
+            </div>
         </div>
-    {% empty %}
-        <p>No reviews yet.</p>
-    {% endfor %}
 
-    <a href="{% url 'rate_product' product.pk %}">Rate this product</a>
+        <!-- 🔹 Product Info -->
+        <div class="col-md-6">
+
+            <h1 class="fw-bold mb-2">{{ product.name }}</h1>
+
+            <!-- 🔹 Rating -->
+            <div class="mb-3">
+                {% if product.average_rating > 0 %}
+                    <span class="text-warning fs-5">
+                        {% for i in "12345" %}
+                            {% if forloop.counter <= product.average_rating|floatformat:0 %}
+                                ★
+                            {% else %}
+                                ☆
+                            {% endif %}
+                        {% endfor %}
+                    </span>
+                    <small class="text-muted">
+                        ({{ product.review_count }} review{{ product.review_count|pluralize }})
+                    </small>
+                {% else %}
+                    <small class="text-muted">No reviews yet</small>
+                {% endif %}
+            </div>
+
+            <!-- 🔹 Price -->
+            <div class="mb-4">
+                {% if product.old_price and product.old_price > product.price %}
+                    <span class="text-muted text-decoration-line-through me-2">
+                        KES {{ product.old_price }}
+                    </span>
+                {% endif %}
+
+                <span class="text-danger fs-3 fw-bold">
+                    KES {{ product.price }}
+                </span>
+            </div>
+
+            <!-- 🔹 Description -->
+            <p class="text-muted mb-4" style="line-height: 1.6;">
+                {{ product.description }}
+            </p>
+
+            <!-- 🔹 Stock Status -->
+            <div class="mb-3">
+                {% if product.stock > 0 %}
+                    <span class="text-success small">
+                        <i class="bi bi-check-circle"></i>
+                        In stock ({{ product.stock }} left)
+                    </span>
+                {% else %}
+                    <span class="text-danger small">
+                        <i class="bi bi-x-circle"></i>
+                        Out of stock
+                    </span>
+                {% endif %}
+            </div>
+
+            <!-- 🔹 Add To Cart -->
+            <form action="{% url 'add_to_cart' product.slug %}"
+                  method="post"
+                  class="d-flex gap-2 mb-3">
+
+                {% csrf_token %}
+
+                <input type="number"
+                       name="quantity"
+                       value="1"
+                       min="1"
+                       max="{{ product.stock }}"
+                       class="form-control"
+                       style="width: 80px;"
+                       {% if product.stock <= 0 %}disabled{% endif %}>
+
+                <button type="submit"
+                        class="btn btn-success flex-grow-1 fw-bold"
+                        {% if product.stock <= 0 %}disabled{% endif %}>
+                    Add to Basket
+                </button>
+            </form>
+
+            <!-- 🔹 Technical Specs -->
+            <div class="border-top pt-3 mt-4 small">
+
+                {% if product.country %}
+                <p><strong>Country:</strong> {{ product.country }}</p>
+                {% endif %}
+
+                <p><strong>Size:</strong> {{ product.size }}</p>
+
+                <p class="mb-1"><i class="bi bi-truck text-success me-2"></i><strong>24/7 Express Delivery</strong></p>
+                <small class="text-muted d-block">Delivery in 20-50 minutes within Nairobi</small>
+                <small class="text-muted d-block">Next-day country-wide delivery (order before 4pm)</small>
+
+            </div>
+
+        </div>
+    </div>
+
 </div>
 {% endblock %}

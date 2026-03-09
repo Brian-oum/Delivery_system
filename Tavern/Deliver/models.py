@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils.text import slugify
 from django.contrib.auth.models import User
+from django.db.models import Avg, Count
 
 # Create your models here.
 class Category(models.Model):
@@ -54,6 +55,13 @@ class Product(models.Model):
     country = models.CharField(max_length=100, blank=True, null=True, help_text="Country of origin of the product")
     feature = models.CharField(max_length=20, choices=FEATURE_CHOICES, blank=True, null=True)
 
+    # Technical Specs
+    size = models.CharField(max_length=50, default="75cl")
+    stock = models.PositiveIntegerField(default=0)
+    # Accolades (Description Tab)
+    accolades = models.TextField(blank=True, null=True, help_text="Awards and recognition")
+
+    # ... keep existing methods ...
     def discount_percentage(self):
         if self.old_price and self.old_price > self.price:
             return int(((self.old_price - self.price) / self.old_price) * 100)
@@ -66,7 +74,13 @@ class Product(models.Model):
 
     def __str__(self):
         return self.name
+    @property
+    def average_rating(self):
+        return self.ratings.aggregate(avg=Avg('rating'))['avg'] or 0
 
+    @property
+    def review_count(self):
+        return self.ratings.count()
 
 class Cart(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
@@ -122,6 +136,9 @@ class ProductRating(models.Model):
     rating = models.IntegerField()  # 1–5
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('product', 'user')
 
 
 class WebsiteRating(models.Model):

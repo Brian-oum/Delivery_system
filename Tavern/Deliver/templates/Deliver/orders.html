@@ -1,23 +1,158 @@
-{% extends "base.html" %}
+{% extends "Deliver/base.html" %}
 {% block title %}Order History{% endblock %}
 
 {% block content %}
-<h1>Order History</h1>
+<div class="history-wrapper">
+    <header class="history-header">
+        <h1>Order History</h1>
+        <p>Manage and track your recent purchases</p>
+    </header>
 
-{% if orders %}
-    <ul>
-        {% for order in orders %}
-        <li>
-            <p>Order #: {{ order.id }} | Total: KES {{ order.total_amount }} | Status: {{ order.status }}</p>
-            <ul>
-                {% for item in order.items.all %}
-                <li>{{ item.product.name }} x{{ item.quantity }} - KES {{ item.price }}</li>
-                {% endfor %}
-            </ul>
-        </li>
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>You have no past orders.</p>
-{% endif %}
+    {% if orders %}
+        <div class="orders-container">
+            {% for order in orders %}
+            <div class="order-card">
+                <div class="card-header">
+                    <div class="meta-left">
+                        <span class="label">ORDER PLACED</span>
+                        <span class="value">{{ order.created_at|date:"d M Y" }}</span>
+                    </div>
+                    <div class="meta-center">
+                        <span class="label">TOTAL</span>
+                        <span class="value">KES {{ order.total_amount }}</span>
+                    </div>
+                    <div class="meta-right">
+                        <span class="order-id">ID #{{ order.id }}</span>
+                        <span class="status-badge status-{{ order.status|lower }}">
+                            {{ order.status }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <table class="order-table">
+                        <tbody>
+                            {% for item in order.items.all %}
+                            <tr>
+                                <td class="col-image">
+                                    {% if item.product.image %}
+                                        <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" class="prod-img">
+                                    {% else %}
+                                        <div class="prod-img-placeholder">📦</div>
+                                    {% endif %}
+                                </td>
+                                <td class="col-details">
+                                    <h3 class="prod-name">{{ item.product.name }}</h3>
+                                    <p class="prod-qty">Quantity: {{ item.quantity }}</p>
+                                </td>
+                                <td class="col-price">
+                                    <span class="item-price">KES {{ item.price }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card-footer d-flex flex-wrap gap-2">
+                    <a href="#" class="btn-secondary">View Invoice</a>
+                    <a href="/" class="btn-primary">Buy Again</a>
+
+                    {% for item in order.items.all %}
+    {% if not item.rated_by_user %}
+        <a href="{% url 'rate_product' item.product.id %}" 
+           class="btn btn-outline-success btn-sm">
+           Rate This Product
+        </a>
+    {% else %}
+        <span class="text-success small">
+           You rated {{ item.product.name }} ★
+        </span>
+    {% endif %}
+{% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🛍️</div>
+            <h2>No orders yet</h2>
+            <p>Looks like you haven't made any purchases recently.</p>
+            <a href="/" class="btn-primary">Start Shopping</a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    /* Container Styles */
+    .history-wrapper { max-width: 900px; margin: 40px auto; padding: 0 20px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    .history-header { margin-bottom: 30px; border-bottom: 2px solid #f0f0f0; padding-bottom: 15px; }
+    .history-header h1 { margin: 0; color: #222; font-size: 28px; }
+    .history-header p { color: #666; margin: 5px 0 0; }
+
+    /* Order Card Styles */
+    .order-card { 
+        border: 1px solid #e1e1e1; border-radius: 10px; margin-bottom: 30px; 
+        background: #fff; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); 
+    }
+
+    /* Card Header (Meta Data) */
+    .card-header { 
+        background: #f6f6f6; padding: 15px 20px; display: flex; 
+        justify-content: space-between; border-bottom: 1px solid #e1e1e1; flex-wrap: wrap; gap: 15px;
+    }
+    .label { display: block; font-size: 11px; color: #777; font-weight: bold; margin-bottom: 3px; }
+    .value { font-size: 14px; color: #333; font-weight: 500; }
+    .order-id { font-size: 13px; color: #555; display: block; margin-bottom: 5px; text-align: right; }
+
+    /* Status Badges */
+    .status-badge { 
+        display: inline-block; padding: 4px 12px; border-radius: 4px; 
+        font-size: 12px; font-weight: bold; text-transform: uppercase; 
+    }
+    .status-delivered { background: #e6f4ea; color: #1e7e34; }
+    .status-pending { background: #fff4e5; color: #b7791f; }
+    .status-processing { background: #e8f0fe; color: #1a73e8; }
+
+    /* Table Styles */
+    .order-table { width: 100%; border-collapse: collapse; }
+    .order-table td { padding: 20px; border-bottom: 1px solid #fafafa; vertical-align: middle; }
+    .col-image { width: 80px; }
+    .prod-img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; }
+    .prod-img-placeholder { 
+        width: 80px; height: 80px; background: #f0f0f0; border-radius: 8px; 
+        display: flex; align-items: center; justify-content: center; font-size: 30px; 
+    }
+    .prod-name { margin: 0 0 5px; font-size: 16px; color: #222; }
+    .prod-qty { margin: 0; font-size: 14px; color: #777; }
+    .item-price { font-weight: 600; color: #333; }
+    .col-price { text-align: right; white-space: nowrap; }
+
+    /* Card Footer */
+    .card-footer { padding: 15px 20px; display: flex; gap: 15px; border-top: 1px solid #eee; }
+    .btn-primary, .btn-secondary { 
+        text-decoration: none; padding: 8px 16px; border-radius: 5px; font-size: 14px; 
+        transition: background 0.2s; font-weight: 500;
+    }
+    .btn-primary { background: #007bff; color: white; border: 1px solid #007bff; }
+    .btn-primary:hover { background: #0056b3; }
+    .btn-secondary { background: white; color: #555; border: 1px solid #ccc; }
+    .btn-secondary:hover { background: #f5f5f5; }
+
+    /* Empty State */
+    .empty-state { text-align: center; padding: 60px 20px; }
+    .empty-icon { font-size: 60px; margin-bottom: 20px; }
+    .empty-state h2 { color: #333; margin-bottom: 10px; }
+    .empty-state p { color: #777; margin-bottom: 25px; }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+        .card-header { flex-direction: column; text-align: left; }
+        .meta-right { text-align: left; }
+        .order-id { text-align: left; }
+        .col-price { text-align: left; display: block; padding-top: 0; }
+        .order-table td { padding: 15px 10px; }
+    }
+</style>
 {% endblock %}

@@ -1,40 +1,146 @@
 {% extends "Deliver/base.html" %}
-{% block title %}Payment Pending{% endblock %}
+{% block title %}Payment Status{% endblock %}
 
 {% block content %}
-<div class="container my-5">
-    <h2>Payment Pending</h2>
-    <p>Please complete the payment on your phone. Do not refresh this page.</p>
+<style>
+    /* Status Card Styling */
+    .status-card {
+        max-width: 500px;
+        margin: 40px auto;
+        padding: 30px;
+        text-align: center;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        background: #fff;
+    }
 
-    <p><strong>Status:</strong> <span id="status-text">{{ order.status|capfirst }}</span></p>
+    /* Success Checkmark Animation */
+    .checkmark-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
+    .checkmark { width: 80px; height: 80px; border-radius: 50%; display: block; stroke-width: 2; stroke: #4bb543; stroke-miterlimit: 10; box-shadow: inset 0px 0px 0px #4bb543; animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s both; }
+    .checkmark__circle { stroke-dasharray: 166; stroke-dashoffset: 166; stroke-width: 2; stroke-miterlimit: 10; stroke: #4bb543; fill: none; animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards; }
+    .checkmark__check { transform-origin: 50% 50%; stroke-dasharray: 48; stroke-dashoffset: 48; animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards; }
+
+    /* Failure X Animation */
+    .cross-wrapper { display: flex; justify-content: center; margin-bottom: 20px; }
+    .cross__circle { stroke-dasharray: 166; stroke-dashoffset: 166; stroke-width: 2; stroke-miterlimit: 10; stroke: #ff5252; fill: none; animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards; }
+    .cross__path { stroke: #ff5252; stroke-dasharray: 48; stroke-dashoffset: 48; transform-origin: 50% 50%; animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards; }
+
+    @keyframes stroke { 100% { stroke-dashoffset: 0; } }
+    @keyframes scale { 0%, 100% { transform: none; } 50% { transform: scale3d(1.1, 1.1, 1); } }
+    @keyframes fill { 100% { box-shadow: inset 0px 0px 0px 40px #fff; } }
+
+    /* Pulse for Pending */
+    .spinner-grow { width: 3rem; height: 3rem; color: #0d6efd; }
+</style>
+
+<div class="container">
+    <div class="status-card" id="main-card">
+        <div id="status-icon">
+            {% if order.status == "paid" %}
+                <div class="checkmark-wrapper">
+                    <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                        <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+                        <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                    </svg>
+                </div>
+            {% elif order.status == "payment_failed" %}
+                <div class="cross-wrapper">
+                    <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                        <circle class="cross__circle" cx="26" cy="26" r="25" fill="none"/>
+                        <path class="cross__path" fill="none" d="M16 16 36 36 M36 16 16 36"/>
+                    </svg>
+                </div>
+            {% else %}
+                <div class="spinner-grow mb-4" role="status"></div>
+            {% endif %}
+        </div>
+
+        <h3 class="fw-bold mb-3" id="status-title">
+            {% if order.status == "paid" %}Payment Successful!
+            {% elif order.status == "payment_failed" %}Payment Failed
+            {% else %}Processing Payment...{% endif %}
+        </h3>
+
+        <div id="status-content">
+            {% if order.status == "paid" %}
+                <p class="text-muted">Thank you! Redirecting you to rate your experience...</p>
+            {% elif order.status == "payment_failed" %}
+                <p class="text-muted">Something went wrong with your transaction.</p>
+                <a href="{% url 'intasend_payment' order.id %}" class="btn btn-danger w-100 py-2">Try Again</a>
+            {% else %}
+                <p class="text-muted">Please check your phone for the M-Pesa prompt. Do not refresh or close this page.</p>
+                <p class="small text-secondary">Status: <span id="status-text" class="fw-bold text-primary">{{ order.status|capfirst }}</span></p>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <script>
+function redirectToRating() {
+    window.location.href = "{% url 'rate_website' order.id %}";
+}
+
 function checkStatus() {
     fetch("{% url 'check_payment_status' order.id %}")
         .then(response => response.json())
         .then(data => {
-            const statusText = document.getElementById("status-text");
-            statusText.textContent = data.status.replace("_", " ");
-
             if (data.status === 'paid') {
-                statusText.textContent = "Payment Completed!";
-                setTimeout(() => {
-                    window.location.href = "{% url 'orders' %}";
-                }, 1000);
+                updateUI('success');
+                setTimeout(redirectToRating, 2000); // redirect after 2s
             } else if (data.status === 'payment_failed') {
-                statusText.textContent = "Payment Failed!";
+                updateUI('failed');
             } else {
+                document.getElementById("status-text").textContent = data.status.replace(/_/g, " ");
                 setTimeout(checkStatus, 3000);
             }
         })
         .catch(err => {
-            console.error("Error checking payment status:", err);
+            console.error("Error:", err);
             setTimeout(checkStatus, 5000);
         });
 }
 
-// Start polling
-checkStatus();
+function updateUI(type) {
+    const iconContainer = document.getElementById("status-icon");
+    const title = document.getElementById("status-title");
+    const content = document.getElementById("status-content");
+
+    if (type === 'success') {
+        iconContainer.innerHTML = `
+            <div class="checkmark-wrapper">
+                <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                    <circle class="checkmark__circle" cx="26" cy="26" r="25" fill="none"/>
+                    <path class="checkmark__check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                </svg>
+            </div>`;
+        title.textContent = "Payment Successful!";
+        title.classList.add("text-success");
+        content.innerHTML = `<p class="text-muted">Success! Redirecting you to rate our website...</p>`;
+    } else if (type === 'failed') {
+        iconContainer.innerHTML = `
+            <div class="cross-wrapper">
+                <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                    <circle class="cross__circle" cx="26" cy="26" r="25" fill="none"/>
+                    <path class="cross__path" fill="none" d="M16 16 36 36 M36 16 16 36"/>
+                </svg>
+            </div>`;
+        title.textContent = "Payment Failed";
+        title.classList.add("text-danger");
+        content.innerHTML = `
+            <p class="text-muted">The transaction could not be completed.</p>
+            <a href="{% url 'intasend_payment' order.id %}" class="btn btn-danger w-100 py-2">Try Again</a>`;
+    }
+}
+
+// --- Run logic on page load ---
+{% if order.status == "paid" %}
+    // already paid, redirect immediately after 2s
+    setTimeout(redirectToRating, 2000);
+{% elif order.status == "payment_failed" %}
+    // do nothing, show failed message
+{% else %}
+    // payment pending, start polling
+    checkStatus();
+{% endif %}
 </script>
 {% endblock %}

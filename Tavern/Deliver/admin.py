@@ -17,3 +17,8 @@ class SubCategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'category', 'slug')
     list_filter = ('category',)
     prepopulated_fields = {"slug": ("name",)}
+@admin.register(WebsiteRating)
+class WebsiteRatingAdmin(admin.ModelAdmin):
+    list_display = ('user', 'rating', 'comment', 'created_at')
+    list_filter = ('rating', 'created_at')
+    search_fields = ('user__username', 'comment')
