@@ -1,16 +1,110 @@
-{% extends "base.html" %}
-{% block title %}Rate {{ product.name }}{% endblock %}
+{% extends "Deliver/base.html" %}
+{% block title %}Rate Product{% endblock %}
 
 {% block content %}
-<h1>Rate {{ product.name }}</h1>
-<form method="post">
-    {% csrf_token %}
-    <label for="rating">Rating (1-5):</label>
-    <input type="number" id="rating" name="rating" min="1" max="5" required>
-    
-    <label for="comment">Comment:</label>
-    <textarea id="comment" name="comment" rows="4"></textarea>
+<style>
+    .rating-card {
+        max-width: 500px;
+        margin: 60px auto;
+        border: none;
+        border-radius: 20px;
+        transition: transform 0.3s ease;
+    }
 
-    <button type="submit">Submit</button>
-</form>
+    /* Star Rating Styling */
+    .rating {
+        display: flex;
+        flex-direction: row-reverse;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .rating input {
+        display: none;
+    }
+
+    .rating label {
+        /* This makes the stars significantly larger */
+        font-size: 3.5rem; 
+        color: #dee2e6;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        line-height: 1;
+    }
+
+    /* Hover and Checked effects */
+    .rating label:hover,
+    .rating label:hover ~ label,
+    .rating input:checked ~ label {
+        color: #ffc107;
+        /* Slight pop effect on hover */
+        transform: scale(1.1); 
+    }
+
+    .rating label:active {
+        transform: scale(0.9);
+    }
+
+    .form-control:focus {
+        border-color: #ffc107;
+        box-shadow: 0 0 0 0.25rem rgba(255, 193, 7, 0.25);
+    }
+
+    .btn-submit {
+        background-color: #0d4412;
+        border: none;
+        padding: 12px;
+        font-weight: 600;
+        border-radius: 10px;
+        transition: background 0.3s;
+    }
+
+    .btn-submit:hover {
+        background-color: #05520b;
+        color: #1d1c1a;
+    }
+</style>
+
+<div class="container">
+    <div class="card p-4 shadow rating-card">
+        <div class="text-center mb-4">
+            <h3 class="fw-bold">Did You Enjoy {{ product.name }}?</h3>
+            <p class="text-muted">Your feedback helps us improve our products.</p>
+        </div>
+
+        <form method="POST">
+            {% csrf_token %}
+            
+            <div class="rating mb-4">
+                <input type="radio" name="rating" id="star5" value="5" required>
+                <label for="star5" title="5 stars">&#9733;</label>
+                
+                <input type="radio" name="rating" id="star4" value="4">
+                <label for="star4" title="4 stars">&#9733;</label>
+                
+                <input type="radio" name="rating" id="star3" value="3">
+                <label for="star3" title="3 stars">&#9733;</label>
+                
+                <input type="radio" name="rating" id="star2" value="2">
+                <label for="star2" title="2 stars">&#9733;</label>
+                
+                <input type="radio" name="rating" id="star1" value="1">
+                <label for="star1" title="1 star">&#9733;</label>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label small fw-bold text-uppercase text-muted">Additional Comments</label>
+                <textarea name="comment" placeholder="Tell us what you liked or what we can improve..." rows="4" class="form-control"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 btn-submit">
+                SUBMIT FEEDBACK
+            </button>
+            
+            <div class="text-center mt-3">
+                <a href="{% url 'orders' %}" class="text-decoration-none small text-muted">Skip for now</a>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}

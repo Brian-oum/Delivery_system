@@ -15,6 +15,9 @@ import uuid
 import json
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, JsonResponse
+from django.db.models import Q
+from django.urls import reverse
+
 
 # =========================
 # Registration View
@@ -97,6 +100,7 @@ def product_list(request, category_slug=None, subcategory_slug=None):
     subcategory = None
     
     view_filter = request.GET.get('filter')
+    search_query = request.GET.get('q')  # get search query
 
     if category_slug:
         category = get_object_or_404(Category, slug=category_slug)
@@ -106,10 +110,17 @@ def product_list(request, category_slug=None, subcategory_slug=None):
         subcategory = get_object_or_404(SubCategory, slug=subcategory_slug)
         products = products.filter(subcategory=subcategory)
 
+    # Search filtering
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) |
+            Q(description__icontains=search_query)
+        )
+
     popular_products = None
     new_products = None
 
-    if not category and not subcategory:
+    if not category and not subcategory and not search_query:
         if view_filter == 'popular':
             popular_products = Product.objects.filter(feature='popular')
             new_products = None
@@ -125,21 +136,37 @@ def product_list(request, category_slug=None, subcategory_slug=None):
         'popular_products': popular_products,
         'new_products': new_products,
         'view_filter': view_filter,
+        'search_query': search_query,
     }
 
     return render(request, 'Deliver/product_list.html', context)
 
 def product_detail(request, slug):
+    # Fetch the product or return 404 if not found
     product = get_object_or_404(Product, slug=slug)
-    ratings = product.ratings.all()
-    average_rating = ratings.aggregate(Avg('rating'))['rating__avg']
+    
+    # Optional: Get related products from the same subcategory/category
+    # This is great for a "You may also like" section later
+    related_products = Product.objects.filter(
+        subcategory=product.subcategory
+    ).exclude(id=product.id)[:4]
 
-    return render(request, 'Deliver/product_detail.html', {
+    # Fetch ratings for this specific product
+    ratings = product.ratings.all().order_by('-created_at')
+    
+    # Calculate average rating (optional logic)
+    avg_rating = 0
+    if ratings.exists():
+        avg_rating = sum(r.rating for r in ratings) / ratings.count()
+
+    context = {
         'product': product,
+        'related_products': related_products,
         'ratings': ratings,
-        'average_rating': average_rating
-    })
-
+        'avg_rating': avg_rating,
+    }
+    
+    return render(request, 'Deliver/product_detail.html', context)
 
 # =========================
 # Cart Views (Guests & Users)
@@ -301,14 +328,23 @@ def checkout(request):
 def intasend_payment_view(request, order_id):
     order = get_object_or_404(Order, id=order_id)
 
+    # =========================
+    # Development: Simulate Payment
+    # =========================
+    if settings.DEBUG:
+        simulate_payment(order)
+        messages.success(request, "Payment simulated successfully (DEV MODE).")
+        return redirect("payment_wait", order_id=order.id)
+
+    # =========================
+    # Production / Sandbox STK Push
+    # =========================
     if request.method == "POST":
         phone = request.POST.get("phone")
         if not phone:
             messages.error(request, "Phone number is required to initiate payment.")
             return redirect("intasend_payment", order_id=order.id)
 
-        # 1. Prepare M-Pesa STK Push Payload
-        # Note: 'api_ref' is used for tracking and 'phone_number' is the expected key
         payload = {
             "amount": float(order.total_amount),
             "phone_number": phone,
@@ -323,34 +359,21 @@ def intasend_payment_view(request, order_id):
         }
 
         try:
-            # 2. Correct Endpoint for Backend M-Pesa STK Push
             response = requests.post(
                 "https://sandbox.intasend.com/api/v1/payment/mpesa-stk-push/",
                 json=payload,
                 headers=headers,
                 timeout=15
             )
-
-            # Debugging (Check your terminal)
             print(f"Status Code: {response.status_code}")
-            
-            # 3. Safe JSON parsing
-            try:
-                data = response.json()
-            except ValueError:
-                # If we get here, it means IntaSend sent back an HTML error page
-                messages.error(request, "Payment gateway returned an invalid response. Please try again later.")
-                return redirect("intasend_payment", order_id=order.id)
+            data = response.json()
 
-            # 4. Handle Response
             if response.status_code in [200, 201, 202]:
                 order.status = "payment_initiated"
                 order.save()
-                
                 messages.info(request, "Please check your phone for the M-Pesa STK prompt.")
                 return redirect("payment_wait", order_id=order.id)
             else:
-                # Catch API errors (e.g., invalid phone format, insufficient balance error)
                 error_msg = data.get("errors", "Request failed. Verify your phone number.")
                 messages.error(request, f"Payment error: {error_msg}")
                 return redirect("intasend_payment", order_id=order.id)
@@ -394,21 +417,33 @@ def intasend_webhook(request):
             return HttpResponse(status=400) # Something went wrong
             
     return HttpResponse(status=405) # Method not allowed
-# =========================
-# Order history (logged in only)
-# =========================
+
 def order_history(request):
     if not request.user.is_authenticated:
         messages.warning(request, "Please log in to view your orders.")
-        return redirect('login')
+        return redirect(f"{reverse('login')}?next={request.path}")
 
-    orders = Order.objects.filter(user=request.user).order_by('-created_at')
+    user_orders = Order.objects.filter(user=request.user)
+
+    guest_cart_id = request.session.get('cart_id')
+    if guest_cart_id:
+        guest_orders = Order.objects.filter(user__isnull=True, id__in=guest_cart_id)
+        guest_orders.update(user=request.user)
+        user_orders = user_orders | guest_orders
+        del request.session['cart_id']
+
+    orders = user_orders.order_by('-created_at')
+
+    # Annotate each order item with a flag if the user has already rated it
+    for order in orders:
+        for item in order.items.all():
+            item.rated_by_user = item.product.ratings.filter(user=request.user).exists()
+
     return render(request, 'Deliver/orders.html', {'orders': orders})
-
-
 # =========================
 # Ratings (logged in only)
 # =========================
+
 def rate_product(request, pk):
     if not request.user.is_authenticated:
         messages.warning(request, "Please log in to rate products.")
@@ -418,41 +453,57 @@ def rate_product(request, pk):
 
     if request.method == "POST":
         rating = int(request.POST.get('rating'))
-        comment = request.POST.get('comment')
+        comment = request.POST.get('comment', '')
 
-        ProductRating.objects.create(
-            product=product,
-            user=request.user,
-            rating=rating,
-            comment=comment
-        )
+        # Check if user has already rated
+        existing_rating = ProductRating.objects.filter(product=product, user=request.user).first()
+        if existing_rating:
+            existing_rating.rating = rating
+            existing_rating.comment = comment
+            existing_rating.save()
+            messages.success(request, f"Updated your rating for {product.name}.")
+        else:
+            ProductRating.objects.create(
+                product=product,
+                user=request.user,
+                rating=rating,
+                comment=comment
+            )
+            messages.success(request, f"Thank you for rating {product.name}!")
 
-        messages.success(request, "Thank you for your feedback!")
-        return redirect('product_detail', slug=product.slug)
+        # Redirect back to where the request came from (orders page or product page)
+        return redirect(request.META.get('HTTP_REFERER', 'orders'))
 
     return render(request, 'Deliver/rate_product.html', {'product': product})
 
+def rate_website(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
 
-def rate_website(request):
-    if not request.user.is_authenticated:
-        messages.warning(request, "Please log in to rate the website.")
-        return redirect('login')
+    # Only allow rating if payment is successful
+    if order.status != "paid":
+        messages.error(request, "You can only rate after a successful payment.")
+        return redirect('orders')
+
+    # Prevent multiple ratings per user per order (optional)
+    if WebsiteRating.objects.filter(user=request.user).exists():
+        messages.info(request, "You have already rated our website.")
+        return redirect('orders')
 
     if request.method == "POST":
-        rating = int(request.POST.get('rating'))
-        comment = request.POST.get('comment')
+        rating_value = request.POST.get("rating")
+        comment = request.POST.get("comment", "")
+        if rating_value:
+            WebsiteRating.objects.create(
+                user=request.user,
+                rating=int(rating_value),
+                comment=comment
+            )
+            messages.success(request, "Thank you for your feedback!")
+            return redirect('orders')
+        else:
+            messages.error(request, "Please select a rating before submitting.")
 
-        WebsiteRating.objects.create(
-            user=request.user,
-            rating=rating,
-            comment=comment
-        )
-
-        messages.success(request, "Thanks for rating our website!")
-        return redirect('product_list')
-
-    return render(request, 'Deliver/rate_website.html')
-
+    return render(request, "Deliver/rate_website.html", {"order": order})
 
 # =========================
 # Promotions
@@ -465,3 +516,13 @@ def promotions_list(request):
     )
 
     return render(request, 'Deliver/promotions.html', {'promotions': promotions})
+
+
+def simulate_payment(order):
+    """
+    Marks an order as paid for development purposes without calling IntaSend.
+    """
+    order.status = "paid"
+    order.payment_reference = f"FAKE-{order.id}"  # fake payment reference
+    order.save()
+    print(f"[SIMULATION] Order {order.id} marked as PAID.")

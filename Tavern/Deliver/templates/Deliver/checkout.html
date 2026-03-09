@@ -6,54 +6,79 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-    /* --- Keep your existing General & Sidebar Styles --- */
-    .checkout-stepper { display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; gap: 20px; }
-    .step { display: flex; flex-direction: column; align-items: center; color: #adb5bd; font-weight: 600; }
-    .step.active { color: #212529; }
-    .step-circle { width: 32px; height: 32px; border-radius: 50%; background: #dee2e6; color: white; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
-    .step.active .step-circle { background: #343a40; }
-    .step-line { width: 150px; height: 2px; background: #dee2e6; margin-bottom: 25px; }
-    .step-line.filled { background: #28a745; }
+/* --- Checkout Stepper --- */
+.checkout-stepper { display: flex; justify-content: center; align-items: center; margin-bottom: 2rem; gap: 20px; }
+.step { display: flex; flex-direction: column; align-items: center; color: #adb5bd; font-weight: 600; }
+.step.active { color: #212529; }
+.step-circle { width: 32px; height: 32px; border-radius: 50%; background: #dee2e6; color: white; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+.step.active .step-circle { background: #343a40; }
+.step-line { width: 150px; height: 2px; background: #dee2e6; margin-bottom: 25px; }
+.step-line.filled { background: #28a745; }
 
-    #mapModal .modal-dialog { position: fixed; margin: 0; width: 100%; max-width: 420px; height: 100%; left: 0; top: 0; transform: translate3d(-100%, 0, 0); transition: transform 0.3s ease-in-out; z-index: 1055; }
-    #mapModal.show .modal-dialog { transform: translate3d(0, 0, 0); }
-    #mapModal .modal-content { height: 100%; display: flex; flex-direction: column; border-radius: 0; border: none; }
-    #mapModal .modal-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; flex: 1; overflow-y: auto; }
+/* --- Map Modal --- */
+#mapModal .modal-dialog {
+    position: fixed;
+    margin: 0;
+    width: 100%;
+    max-width: 600px;
+    height: 100%;
+    left: 0;
+    top: 0;
+    transform: translate3d(-100%,0,0);
+    transition: transform 0.3s ease-in-out;
+    z-index: 1055;
+}
+#mapModal.show .modal-dialog { transform: translate3d(0,0,0); }
+#mapModal .modal-content { height: 100%; display: flex; flex-direction: column; border-radius: 0; border: none; }
+#mapModal .modal-body { padding: 1.5rem; flex:1; display: flex; flex-direction: column; gap:1rem; overflow-y:auto; }
+#map { min-height: 300px; width: 100%; border-radius: 8px; border:1px solid #ddd; }
 
-    #map { min-height: 300px; width: 100%; border-radius: 8px; border: 1px solid #ddd; }
-    .modal-input { padding: 12px; border: 1px solid #ddd; border-radius: 4px; width: 100%; }
-    .btn-save-address { background-color: #5cb85c; color: white; width: 100%; padding: 20px; border: none; font-weight: bold; text-transform: uppercase; }
+.modal-input { 
+    padding: 12px; 
+    border: 1px solid #ddd; 
+    border-radius: 4px; 
+    width: 100%; 
+    box-sizing: border-box;
+}
+.btn-save-address { background-color:#063b06; color:white; width:100%; padding:15px; border:none; font-weight:bold; text-transform:uppercase; }
 
-    /* --- NEW: Autocomplete Search Styles --- */
-    .search-container { position: relative; width: 100%; }
-    #address-results {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: white;
-        border: 1px solid #ddd;
-        border-top: none;
-        z-index: 2000;
-        max-height: 200px;
-        overflow-y: auto;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        border-radius: 0 0 4px 4px;
-        display: none;
-    }
-    .result-item {
-        padding: 10px 15px;
-        cursor: pointer;
-        border-bottom: 1px solid #eee;
-        font-size: 0.9rem;
-    }
-    .result-item:hover { background-color: #f8f9fa; }
+/* --- Search Container --- */
+.search-container {
+    position: relative;
+    width: 100%;
+    margin-left: 0;
+}
 
-    .sticky-summary { position: sticky; top: 20px; }
-    .order-items-scroll { max-height: 300px; overflow-y: auto; }
+#address-results {
+    position: absolute;
+    top: 100%; 
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    z-index: 2000;
+    display: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+.result-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9rem;
+}
+
+.result-item:hover { background-color: #f8f9fa; }
+
+/* --- Order Summary --- */
+.sticky-summary { position: sticky; top: 20px; }
+.order-items-scroll { max-height: 300px; overflow-y: auto; }
+
 </style>
 
 <div class="container my-5">
+    <!-- Stepper -->
     <div class="checkout-stepper">
         <div class="step active"><div class="step-circle">1</div><span>Shopping Basket</span></div>
         <div class="step-line filled"></div>
@@ -64,7 +89,10 @@
 
     <form method="POST" action="{% url 'checkout' %}">
         {% csrf_token %}
+        <input type="hidden" name="building_name" id="building_name">
+        <input type="hidden" name="door_number" id="door_number">
         <div class="row g-5">
+            <!-- Billing Details -->
             <div class="col-lg-7">
                 <h4 class="mb-4">Billing Details</h4>
                 <div class="row g-3">
@@ -85,16 +113,15 @@
                         <input type="email" name="email" class="form-control" required>
                     </div>
 
+                    <!-- Map Selection -->
                     <div class="col-12">
                         <label class="form-label">Delivery Location *</label>
-                        <div class="input-group">
+                        <div class="input-group mb-2">
                             <input type="text" id="location_name" name="location_name" class="form-control bg-light" placeholder="Select from map" readonly required>
                             <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#mapModal">Select from Map</button>
                         </div>
                         <input type="hidden" name="latitude" id="latitude">
                         <input type="hidden" name="longitude" id="longitude">
-                        <input type="hidden" name="building_name" id="building_name">
-                        <input type="hidden" name="door_number" id="door_number">
                     </div>
 
                     <div class="col-12 mt-4">
@@ -104,10 +131,10 @@
                 </div>
             </div>
 
+            <!-- Order Summary -->
             <div class="col-lg-5">
                 <div class="p-4 border rounded shadow-sm bg-white sticky-summary">
                     <h5 class="mb-4 fw-bold">Your delivery</h5>
-
                     <div class="order-items-scroll pe-2">
                         {% for item in items %}
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -124,43 +151,36 @@
                     </div>
 
                     <hr class="my-4">
-
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">Subtotal (ex. VAT)</span>
-                        <span>KSh {{ subtotal_ex_vat|floatformat:0 }}</span>
-                    </div>
-
-                    <div class="d-flex justify-content-between mb-2">
-                        <span class="text-muted">VAT (16%)</span>
-                        <span>KSh {{ vat_amount|floatformat:0 }}</span>
-                    </div>
-
-                    <div class="d-flex justify-content-between mb-4">
-                        <span class="fs-4 fw-bold">Total</span>
-                        <span class="fs-4 fw-bold text-success">KSh {{ total|floatformat:0 }}</span>
-                    </div>
+                    <div class="d-flex justify-content-between mb-2"><span class="text-muted">Subtotal (ex. VAT)</span><span>KSh {{ subtotal_ex_vat|floatformat:0 }}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span class="text-muted">VAT (16%)</span><span>KSh {{ vat_amount|floatformat:0 }}</span></div>
+                    <div class="d-flex justify-content-between mb-4"><span class="fs-4 fw-bold">Total</span><span class="fs-4 fw-bold text-success">KSh {{ total|floatformat:0 }}</span></div>
 
                     <div class="payment-option border p-3 rounded mb-3 bg-light">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="payment" value="intasend" id="intasend" checked>
-                            <label class="form-check-label fw-bold" for="intasend">Pay with IntaSend</label>
+                        <div class="form-check d-flex align-items-center justify-content-between w-100">
+                            <div class="flex-grow-1">
+                                <input class="form-check-input" type="radio" name="payment" value="intasend" id="intasend" checked>
+                                <label class="form-check-label fw-bold" for="intasend">
+                                  Pay with M-Pesa
+                                </label>
+                            </div>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" 
+                             alt="M-Pesa" 
+                             style="height: 25px; width: auto; object-fit: contain;">
                         </div>
-                        <p class="small text-muted mt-1 mb-0">You will be redirected to IntaSend to complete payment securely.</p>
+                        <p class="small text-muted mt-2 mb-0">You will be redirected to M-Pesa to complete payment securely.</p>
                     </div>
 
                     <p style="font-size: 0.7rem;" class="text-muted mb-3">
                         By placing an order, I confirm I am 18+ and accept the terms and conditions.
                     </p>
-
-                    <button type="submit" class="btn btn-success w-100 py-3 fw-bold">
-                        PROCEED TO PAYMENT
-                    </button>
+                    <button type="submit" class="btn btn-success w-100 py-3 fw-bold">PROCEED TO PAYMENT</button>
                 </div>
             </div>
         </div>
     </form>
 </div>
 
+<!-- MAP MODAL -->
 <div class="modal fade" id="mapModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -170,14 +190,20 @@
             <div class="modal-body">
                 <h5 class="fw-bold mb-3">Add your location</h5>
 
-                <div class="search-container">
+                <div class="search-container mb-2">
                     <input type="text" id="modal_search" class="modal-input" placeholder="Search building, street, or area...">
                     <div id="address-results"></div>
                 </div>
 
-                <div id="map"></div>
+                <div class="d-flex mb-2">
+                    <button type="button" id="currentLocationBtn" class="btn btn-outline-primary w-100">
+                        Use Current Location
+                    </button>
+                </div>
 
-                <input type="text" id="modal_door" class="modal-input" placeholder="Door / Flat no. (Optional)">
+                <div id="map" style="min-height: 400px;"></div>
+
+                <input type="text" id="modal_door" class="modal-input mt-2" placeholder="Door / Flat no. (Optional)">
             </div>
             <div class="modal-footer border-0 p-0">
                 <button type="button" class="btn-save-address" id="saveLocationBtn">SAVE ADDRESS & PROCEED</button>
@@ -186,26 +212,22 @@
     </div>
 </div>
 
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
-let map;
-let marker;
+let map, marker;
 const mapModal = document.getElementById('mapModal');
 const searchInput = document.getElementById('modal_search');
 const resultsContainer = document.getElementById('address-results');
+const currentLocationBtn = document.getElementById('currentLocationBtn');
 
-mapModal.addEventListener('shown.bs.modal', function () {
+// Initialize map
+mapModal.addEventListener('shown.bs.modal', () => {
     if (!map) {
         map = L.map('map').setView([-1.286389, 36.817223], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-        map.on('click', function(e) {
-            updateMarker(e.latlng.lat, e.latlng.lng);
-        });
+        map.on('click', (e) => updateMarker(e.latlng.lat, e.latlng.lng));
     }
-    setTimeout(() => { map.invalidateSize(); }, 200);
+    setTimeout(() => map.invalidateSize(), 200);
 });
 
 function updateMarker(lat, lng) {
@@ -213,66 +235,93 @@ function updateMarker(lat, lng) {
     if (marker) {
         marker.setLatLng(latlng);
     } else {
-        marker = L.marker(latlng).addTo(map);
+        marker = L.marker(latlng, { draggable: true }).addTo(map);
+        marker.on('dragend', function(e) {
+            const pos = e.target.getLatLng();
+            document.getElementById('latitude').value = pos.lat;
+            document.getElementById('longitude').value = pos.lng;
+        });
     }
     map.setView(latlng, 17);
     document.getElementById('latitude').value = lat;
     document.getElementById('longitude').value = lng;
 }
 
-// --- Autocomplete Logic ---
+// --- Search Autocomplete ---
 let debounceTimer;
 searchInput.addEventListener('input', function() {
     clearTimeout(debounceTimer);
     const query = this.value;
-
-    if (query.length < 3) {
-        resultsContainer.style.display = 'none';
-        return;
-    }
+    if (query.length < 3) { resultsContainer.style.display = 'none'; return; }
 
     debounceTimer = setTimeout(() => {
         fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=ke`)
-            .then(response => response.json())
-            .then(data => {
-                resultsContainer.innerHTML = '';
-                if (data.length > 0) {
-                    resultsContainer.style.display = 'block';
-                    data.forEach(item => {
-                        const div = document.createElement('div');
-                        div.className = 'result-item';
-                        div.textContent = item.display_name;
-                        div.onclick = () => {
-                            searchInput.value = item.display_name;
-                            updateMarker(parseFloat(item.lat), parseFloat(item.lon));
-                            resultsContainer.style.display = 'none';
-                        };
-                        resultsContainer.appendChild(div);
-                    });
-                } else {
-                    resultsContainer.style.display = 'none';
-                }
-            });
+        .then(res => res.json())
+        .then(data => {
+            resultsContainer.innerHTML = '';
+            if (data.length) {
+                resultsContainer.style.display = 'block';
+                data.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.textContent = item.display_name;
+                    div.onclick = () => {
+                        searchInput.value = item.display_name;
+                        updateMarker(parseFloat(item.lat), parseFloat(item.lon));
+                        resultsContainer.style.display = 'none';
+                    };
+                    resultsContainer.appendChild(div);
+                });
+            } else resultsContainer.style.display = 'none';
+        });
     }, 300);
 });
 
-// Close results when clicking outside
-document.addEventListener('click', (e) => {
-    if (e.target !== searchInput) resultsContainer.style.display = 'none';
+document.addEventListener('click', e => { if (!searchInput.contains(e.target)) resultsContainer.style.display = 'none'; });
+
+// --- Use Current Location ---
+currentLocationBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) { alert("Geolocation is not supported by your browser."); return; }
+
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            updateMarker(lat, lng);
+
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lng;
+
+            // Reverse geocode
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(res => res.json())
+                .then(data => {
+                    searchInput.value = data.display_name || '';
+                });
+        },
+        () => { alert("Unable to retrieve your location. Please check permissions."); },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
 });
 
+// --- Save Location & Close Modal ---
 document.getElementById('saveLocationBtn').addEventListener('click', function() {
     const address = searchInput.value;
     const door = document.getElementById('modal_door').value;
     const lat = document.getElementById('latitude').value;
+    const lng = document.getElementById('longitude').value;
 
-    if (!lat) {
-        alert("Please select a location on the map.");
-        return;
+    if (!lat || !lng) { 
+        alert("Please select a location on the map or use current location."); 
+        return; 
     }
 
-    document.getElementById('location_name').value = (address + (door ? ", " + door : "")) || "Location Set";
-    bootstrap.Modal.getInstance(mapModal).hide();
+    document.getElementById('location_name').value = address;
+    document.getElementById('building_name').value = address;
+    document.getElementById('door_number').value = door;
+
+    const modalInstance = bootstrap.Modal.getInstance(mapModal);
+    modalInstance.hide();
 });
 </script>
 

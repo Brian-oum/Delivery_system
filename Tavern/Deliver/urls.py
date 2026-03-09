@@ -50,7 +50,7 @@ urlpatterns = [
     # Ratings
     # =========================
     path('rate-product/<int:pk>/', views.rate_product, name='rate_product'),
-    path('rate-website/', views.rate_website, name='rate_website'),
+    path('rate-website/<int:order_id>/', views.rate_website, name='rate_website'),
 
     # =========================
     # Promotions
