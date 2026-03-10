@@ -22,3 +22,10 @@ class WebsiteRatingAdmin(admin.ModelAdmin):
     list_display = ('user', 'rating', 'comment', 'created_at')
     list_filter = ('rating', 'created_at')
     search_fields = ('user__username', 'comment')
+
+@admin.register(OrderTracking)
+class OrderTrackingAdmin(admin.ModelAdmin):
+    list_display = ('order', 'status', 'driver_latitude', 'driver_longitude', 'updated_at')
+    list_filter = ('status', 'updated_at')
+    search_fields = ('order__id',)
+    readonly_fields = ('updated_at',)  # Updated automatically

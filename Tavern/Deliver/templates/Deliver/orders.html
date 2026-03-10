@@ -57,6 +57,9 @@
                 <div class="card-footer d-flex flex-wrap gap-2">
                     <a href="#" class="btn-secondary">View Invoice</a>
                     <a href="/" class="btn-primary">Buy Again</a>
+                    <a href="{% url 'track_order' order.id %}" class="btn-secondary">
+                      Track Order
+                    </a>
 
                     {% for item in order.items.all %}
     {% if not item.rated_by_user %}

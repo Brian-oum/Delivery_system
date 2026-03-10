@@ -1,0 +1,129 @@
+{% extends "Deliver/base.html" %}
+
+{% block content %}
+
+<h2>Track Order #{{ order.id }} (Premium Live Routing)</h2>
+
+<div id="map" style="height:550px; border-radius:10px; box-shadow:0 4px 8px rgba(0,0,0,0.2);"></div>
+
+<p id="status" style="margin-top:10px; font-weight:bold; color:#2a2a2a;">
+    {{ tracking.status|default:"Waiting for driver" }}
+</p>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-wx5yf3RZ0CKUO4h71+O8m3F+Z+Ku+7V8D2f1mxs9+cwR3nK5nSXYR+v/N1TFBz4v+eNfHHcE8c+F67yoXk9HiQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+<script>
+// --- Data Setup ---
+var customerLat = {{ order.latitude|default:0|floatformat:6 }};
+var customerLng = {{ order.longitude|default:0|floatformat:6 }};
+var driverLat = {{ tracking.driver_latitude|default:order.latitude|default:0|floatformat:6 }};
+var driverLng = {{ tracking.driver_longitude|default:order.longitude|default:0|floatformat:6 }};
+
+// --- Initialize Map ---
+var map = L.map('map').setView([driverLat, driverLng], 14);
+
+// Map tiles
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+}).addTo(map);
+
+// --- Custom Icons ---
+var truckIcon = L.icon({
+    html: '<i class="fas fa-truck fa-2x" style="color:#007bff;"></i>', // Truck Icon
+    iconSize: [50, 50],
+    iconAnchor: [25, 25]
+});
+
+// Customer Icon
+var customerIcon = L.icon({
+    html: '<i class="fas fa-map-pin fa-2x" style="color:#28a745;"></i>',
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+});
+
+// --- Markers ---
+var customerMarker = L.marker([customerLat, customerLng], {icon: customerIcon})
+    .addTo(map)
+    .bindPopup("<b>Delivery Location</b>")
+    .openPopup();
+
+// --- Routing Control ---
+var control = L.Routing.control({
+    waypoints: [
+        L.latLng(driverLat, driverLng),
+        L.latLng(customerLat, customerLng)
+    ],
+    lineOptions: {
+        styles: [{ color: '#00aaff', opacity: 0.8, weight: 6 }]
+    },
+    createMarker: function(i, waypoint, n){
+        var latLng = waypoint.latLng || waypoint;
+        if(i === 0){
+            return L.marker(latLng, {icon: truckIcon}).bindPopup("<b>Driver Location</b>");
+        } else {
+            return L.marker(latLng, {icon: customerIcon}).bindPopup("<b>Delivery Location</b>");
+        }
+    },
+    routeWhileDragging: false,
+    addWaypoints: false,
+    show: false
+}).addTo(map);
+
+// --- Animate Driver Smoothly ---
+var driverMarker;
+control.on('routesfound', function(e){
+    var route = e.routes[0];
+    var coords = route.coordinates;
+
+    if(!driverMarker){
+        driverMarker = L.marker(coords[0], {icon: truckIcon}).addTo(map);
+        driverMarker.bindPopup("Driver Location").openPopup();
+    }
+
+    var index = 0;
+    var stepsPerSegment = 50; // Smoothness
+    var step = 0;
+
+    function moveMarker(){
+        if(index >= coords.length - 1) return;
+
+        var start = coords[index];
+        var end = coords[index + 1];
+
+        var latDiff = (end.lat - start.lat)/stepsPerSegment;
+        var lngDiff = (end.lng - start.lng)/stepsPerSegment;
+
+        function stepMove(){
+            if(step >= stepsPerSegment){
+                step = 0;
+                index++;
+                moveMarker(); // Next segment
+                return;
+            }
+
+            var newLat = start.lat + latDiff*step;
+            var newLng = start.lng + lngDiff*step;
+
+            driverMarker.setLatLng([newLat, newLng]);
+            map.panTo([newLat, newLng]);
+            step++;
+
+            requestAnimationFrame(stepMove);
+        }
+
+        stepMove();
+    }
+
+    moveMarker();
+});
+
+// Optional: You can later replace simulation with live GPS updates by calling
+// control.spliceWaypoints(0,1,new L.LatLng(lat,lng)) in your driver GPS endpoint.
+
+</script>
+
+{% endblock %}

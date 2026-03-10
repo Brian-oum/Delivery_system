@@ -1,0 +1,78 @@
+{% extends "Deliver/base.html" %}
+
+{% block content %}
+
+<h2>Driver Tracking for Order #{{ order.id }}</h2>
+
+<p id="status">Sending location...</p>
+
+<script>
+// Order ID
+var orderId = "{{ order.id }}";
+
+// Function to get CSRF token (for Django)
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+// Function to send driver location to the server
+function sendLocation(latitude, longitude) {
+    fetch("/update-location/" + orderId + "/", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": csrftoken  // Include CSRF token
+        },
+        body: JSON.stringify({
+            "latitude": latitude,
+            "longitude": longitude,
+            "status": "on_the_way"
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log("Location updated:", data);
+        document.getElementById("status").innerText = "Location sent successfully";
+    })
+    .catch(error => {
+        console.error("Error sending location:", error);
+        document.getElementById("status").innerText = "Error sending location";
+    });
+}
+
+// Watch driver position and send continuously
+if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(
+        function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            sendLocation(lat, lng);
+        },
+        function(error) {
+            console.error("Geolocation error:", error);
+            document.getElementById("status").innerText = "Unable to get location";
+        },
+        {
+            enableHighAccuracy: true,
+            maximumAge: 3000,
+            timeout: 5000
+        }
+    );
+} else {
+    document.getElementById("status").innerText = "Geolocation is not supported by this browser";
+}
+</script>
+
+{% endblock %}

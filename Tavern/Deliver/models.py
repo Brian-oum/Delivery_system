@@ -154,3 +154,25 @@ class Promotion(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     active = models.BooleanField(default=True)
+
+class OrderTracking(models.Model):
+
+    STATUS_CHOICES = (
+        ('assigned', 'Driver Assigned'),
+        ('picked', 'Order Picked'),
+        ('on_the_way', 'On The Way'),
+        ('arriving', 'Arriving Soon'),
+        ('delivered', 'Delivered'),
+    )
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="tracking")
+
+    driver_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    driver_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="assigned")
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Tracking Order #{self.order.id}"

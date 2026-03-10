@@ -526,3 +526,49 @@ def simulate_payment(order):
     order.payment_reference = f"FAKE-{order.id}"  # fake payment reference
     order.save()
     print(f"[SIMULATION] Order {order.id} marked as PAID.")
+
+
+def track_order(request, order_id):
+
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+
+    tracking = OrderTracking.objects.filter(order=order).first()
+
+    return render(request, "Deliver/track_order.html", {
+        "order": order,
+        "tracking": tracking
+    })
+
+def driver_location(request, order_id):
+
+    tracking = get_object_or_404(OrderTracking, order_id=order_id)
+
+    return JsonResponse({
+        "lat": float(tracking.driver_latitude) if tracking.driver_latitude else 0,
+        "lng": float(tracking.driver_longitude) if tracking.driver_longitude else 0,
+        "status": tracking.status
+    })
+
+def driver_tracking(request, order_id):
+
+    order = get_object_or_404(Order, id=order_id)
+
+    return render(request, "Deliver/driver_tracking.html", {
+        "order": order
+    })
+
+@csrf_exempt
+def update_driver_location(request, order_id):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        lat = data.get("latitude")
+        lng = data.get("longitude")
+        status = data.get("status", "on_the_way")
+
+        tracking = OrderTracking.objects.get(order_id=order_id)
+        tracking.driver_latitude = lat
+        tracking.driver_longitude = lng
+        tracking.status = status
+        tracking.save()
+
+        return JsonResponse({"status": "updated"})

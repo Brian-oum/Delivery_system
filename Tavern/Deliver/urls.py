@@ -40,6 +40,10 @@ urlpatterns = [
     # =========================
     path('checkout/', views.checkout, name='checkout'),
     path('orders/', views.order_history, name='orders'),
+    path("track/<int:order_id>/", views.track_order, name="track_order"),
+    path("driver/<int:order_id>/", views.driver_tracking, name="driver_tracking"),
+    path("driver-location/<int:order_id>/", views.driver_location),
+    path("update-location/<int:order_id>/", views.update_driver_location),
     #path('checkout/mpesa/', views.mpesa_checkout, name='mpesa_checkout'),
     path('checkout/intasend/<int:order_id>/', views.intasend_payment_view, name='intasend_payment'),
     path('intasend/webhook/', views.intasend_webhook, name='intasend_webhook'),
