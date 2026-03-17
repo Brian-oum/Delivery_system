@@ -86,7 +86,7 @@ function checkStatus() {
         .then(data => {
             if (data.status === 'paid') {
                 updateUI('success');
-                setTimeout(redirectToRating, 2000); // redirect after 2s
+                setTimeout(redirectToRating, 2000);
             } else if (data.status === 'payment_failed') {
                 updateUI('failed');
             } else {

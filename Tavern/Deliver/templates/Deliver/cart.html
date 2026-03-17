@@ -97,7 +97,10 @@
             <div class="summary-box shadow-sm">
                 <div class="summary-row">
                     <span class="fw-bold">Subtotal</span>
-                    <span>KSh {{ subtotal_ex_vat|floatformat:0 }} <small class="text-muted">(ex. vat)</small></span>
+                    <span>
+                        KSh {{ subtotal|floatformat:0 }}
+                        <small class="text-muted">(ex. vat)</small>
+                    </span>
                 </div>
                 <div class="summary-row">
                     <span class="text-muted">VAT</span>

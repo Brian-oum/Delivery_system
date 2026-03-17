@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.db.models import Sum, Count, Avg
 from django.core.mail import send_mail
+from django.core.paginator import Paginator
 from django.conf import settings
 from django.utils import timezone
 from .models import *
@@ -11,12 +12,15 @@ from django.contrib.auth.models import User
 from decimal import Decimal
 from django.db import transaction
 import requests
-import uuid
+from django.template.loader import render_to_string
 import json
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse, JsonResponse
 from django.db.models import Q
 from django.urls import reverse
+from django.contrib.auth.decorators import user_passes_test
+from math import floor, radians, cos, sin, asin, sqrt
+
 
 
 # =========================
@@ -183,33 +187,32 @@ def add_to_cart(request, slug):
     messages.success(request, f"{product.name} added to cart.")
     return redirect('cart')
 
-
 def view_cart(request):
     cart = get_cart(request)
     items = cart.items.all()
 
-    total = sum(Decimal(item.total_price()) for item in items)
+    subtotal = sum(item.total_price() for item in items)
+
     vat_rate = Decimal('0.16')
+    vat_amount = subtotal * vat_rate
+    total = subtotal + vat_amount
+
     delivery_threshold = Decimal('15000')
 
-    subtotal_ex_vat = (total / (Decimal('1') + vat_rate)) if total > 0 else Decimal('0')
-    vat_amount = total - subtotal_ex_vat
-
-    progress_percent = (total / delivery_threshold * Decimal('100')) if total > 0 else Decimal('0')
+    progress_percent = (subtotal / delivery_threshold * Decimal('100')) if subtotal > 0 else Decimal('0')
     progress_percent = min(progress_percent, Decimal('100'))
 
     context = {
         'cart': cart,
         'items': items,
-        'total': total,
-        'subtotal_ex_vat': subtotal_ex_vat,
+        'subtotal': subtotal,
         'vat_amount': vat_amount,
+        'total': total,
         'progress_percent': progress_percent,
         'delivery_threshold': delivery_threshold,
     }
 
     return render(request, 'Deliver/cart.html', context)
-
 
 def update_cart_quantity(request, slug):
     if request.method == 'POST':
@@ -244,9 +247,53 @@ def remove_from_cart(request, slug):
 
 
 # =========================
-# Checkout (Guests & Logged-in Users with IntaSend)
+# SHOP LOCATION (Umoja)
 # =========================
-# views.py
+SHOP_LAT = -1.2745
+SHOP_LNG = 36.8940
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    return 6371 * c  # KM
+
+# =========================
+# AJAX DELIVERY CALCULATION
+# =========================
+def ajax_calculate_delivery(request):
+    lat = request.GET.get('lat')
+    lng = request.GET.get('lng')
+    if not lat or not lng:
+        return JsonResponse({'error': 'Missing coordinates'}, status=400)
+
+    lat = float(lat)
+    lng = float(lng)
+
+    distance = calculate_distance(SHOP_LAT, SHOP_LNG, lat, lng)
+
+    if distance <= 10:
+        delivery_fee = Decimal('200')
+        zone = "Local Area (Umoja / Donholm / Komarock)"
+    elif distance <= 30:
+        delivery_fee = Decimal('400')
+        zone = "Nairobi Metropolitan"
+    else:
+        delivery_fee = Decimal('500')
+        zone = "Outside Nairobi"
+
+    return JsonResponse({
+        'delivery_fee': float(delivery_fee),
+        'distance': round(distance, 2),
+        'zone': zone
+    })
+
+
+# =========================
+# CHECKOUT VIEW
+# =========================
 def checkout(request):
     cart = get_cart(request)
     items = cart.items.all()
@@ -255,13 +302,23 @@ def checkout(request):
         messages.warning(request, "Your cart is empty.")
         return redirect('product_list')
 
-    total = sum(Decimal(item.total_price()) for item in items)
+    # -------------------------
+    # CART TOTALS
+    # -------------------------
+    cart_total = sum(Decimal(item.total_price()) for item in items)
     vat_rate = Decimal('0.16')
-    subtotal_ex_vat = total / (Decimal('1') + vat_rate)
-    vat_amount = total - subtotal_ex_vat
+    subtotal_ex_vat = cart_total / (Decimal('1') + vat_rate)
+    vat_amount = cart_total - subtotal_ex_vat
 
+    # Default delivery values (before user selects location)
+    delivery_fee = Decimal('0')
+    delivery_zone = None
+    distance = None
+
+    # -------------------------
+    # HANDLE POST (ORDER)
+    # -------------------------
     if request.method == 'POST':
-        # Collect user info
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
         phone = request.POST.get('phone')
@@ -270,11 +327,45 @@ def checkout(request):
 
         building_name = request.POST.get('building_name')
         door_number = request.POST.get('door_number')
-        latitude = request.POST.get('latitude') or None
-        longitude = request.POST.get('longitude') or None
+
+        latitude = request.POST.get('latitude')
+        longitude = request.POST.get('longitude')
 
         payment_method = request.POST.get('payment')
 
+        # -------------------------
+        # VALIDATE LOCATION
+        # -------------------------
+        if not latitude or not longitude:
+            messages.error(request, "Please select a delivery location on the map.")
+            return redirect('checkout')
+
+        lat = float(latitude)
+        lng = float(longitude)
+
+        # -------------------------
+        # CALCULATE DELIVERY
+        # -------------------------
+        distance = calculate_distance(SHOP_LAT, SHOP_LNG, lat, lng)
+
+        if distance <= 10:
+            delivery_fee = Decimal('200')
+            delivery_zone = "Local Area (Umoja / Donholm / Komarock)"
+        elif distance <= 30:
+            delivery_fee = Decimal('400')
+            delivery_zone = "Nairobi Metropolitan"
+        else:
+            delivery_fee = Decimal('500')
+            delivery_zone = "Outside Nairobi"
+
+        # -------------------------
+        # FINAL TOTAL
+        # -------------------------
+        total = cart_total + delivery_fee
+
+        # -------------------------
+        # CREATE ORDER
+        # -------------------------
         with transaction.atomic():
             order = Order.objects.create(
                 user=request.user if request.user.is_authenticated else None,
@@ -288,9 +379,11 @@ def checkout(request):
                 latitude=latitude,
                 longitude=longitude,
                 total_amount=total,
+                delivery_fee=delivery_fee,
                 status='pending'
             )
 
+            # Create order items
             for item in items:
                 OrderItem.objects.create(
                     order=order,
@@ -299,19 +392,50 @@ def checkout(request):
                     price=item.product.price
                 )
 
-            # Clear guest session cart
+            # -------------------------
+            # SEND EMAIL
+            # -------------------------
+            send_mail(
+                subject=f"Order Confirmation #{order.id}",
+                message=f"""
+Hello {order.first_name},
+
+Your order #{order.id} has been successfully placed.
+
+Subtotal: KES {cart_total}
+Delivery Fee: KES {delivery_fee}
+Total Amount: KES {total}
+
+Delivery Zone: {delivery_zone}
+
+We will notify you once your payment is confirmed.
+
+Thank you for shopping with us.
+                """,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[order.email],
+                fail_silently=True,
+            )
+
+            # Clear cart
             if not request.user.is_authenticated:
-                del request.session['cart_id']
+                request.session.pop('cart_id', None)
 
             items.delete()
 
-        # Redirect to IntaSend payment page if chosen
+        # -------------------------
+        # PAYMENT REDIRECT
+        # -------------------------
         if payment_method == 'intasend':
             return redirect('intasend_payment', order_id=order.id)
 
-        # Otherwise, handle other payment methods (e.g., M-Pesa)
         messages.success(request, "Order placed successfully!")
         return redirect('orders')
+
+    # -------------------------
+    # GET REQUEST (PAGE LOAD)
+    # -------------------------
+    total = cart_total  # no delivery yet
 
     context = {
         'cart': cart,
@@ -319,10 +443,12 @@ def checkout(request):
         'total': total,
         'subtotal_ex_vat': subtotal_ex_vat,
         'vat_amount': vat_amount,
+        'delivery_fee': delivery_fee,
+        'distance': distance,
+        'delivery_zone': delivery_zone,
     }
 
     return render(request, 'Deliver/checkout.html', context)
-
 #
 
 def intasend_payment_view(request, order_id):
@@ -407,6 +533,25 @@ def intasend_webhook(request):
 
                 if state == 'COMPLETE':
                     order.status = 'paid'
+                    order.save()
+
+                    send_mail(
+                        subject=f"Payment Successful for Order #{order.id}",
+                        message=f"""
+                    Hello {order.first_name},
+
+                    Your payment for order #{order.id} was successful.
+
+                    Total Paid: KES {order.total_amount}
+
+                    Your order is now being processed.
+
+                    Thank you for shopping with us.
+                    """,
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[order.email],
+                        fail_silently=True,
+                    )
                 elif state == 'FAILED':
                     order.status = 'payment_failed'
                 order.save()
@@ -526,3 +671,70 @@ def simulate_payment(order):
     order.payment_reference = f"FAKE-{order.id}"  # fake payment reference
     order.save()
     print(f"[SIMULATION] Order {order.id} marked as PAID.")
+
+# Superuser decorator
+def superuser_required(view_func):
+    return user_passes_test(lambda u: u.is_superuser)(view_func)
+
+@superuser_required
+def reports(request):
+    orders_with_coords = Order.objects.exclude(latitude__isnull=True, longitude__isnull=True)
+    map_data = [[float(o.latitude), float(o.longitude), 1] for o in orders_with_coords]
+
+    total_sales = Order.objects.aggregate(total=Sum('total_amount'))['total'] or 0
+
+    top_products = Product.objects.annotate(
+        order_count=Count('orderitem')
+    ).order_by('-order_count')[:5]
+
+    avg_website_rating = WebsiteRating.objects.aggregate(avg=Avg('rating'))['avg'] or 0
+    full_stars = floor(avg_website_rating)
+    empty_stars = 5 - full_stars
+
+    products = Product.objects.all()
+    orders = Order.objects.order_by('-created_at')
+
+    # Pagination for products
+    paginator = Paginator(products, 10)
+    page_number = request.GET.get('page')
+    products_page = paginator.get_page(page_number)
+
+    # Order status analytics
+    pending_orders = Order.objects.filter(status="Pending").count()
+    delivered_orders = Order.objects.filter(status="Delivered").count()
+    cancelled_orders = Order.objects.filter(status="Cancelled").count()
+
+    # Recent orders
+    recent_orders = Order.objects.order_by('-created_at')[:5]
+
+    context = {
+        'total_products': products.count(),
+        'total_orders': orders.count(),
+        'total_sales': total_sales,
+        'products': products_page,
+        'orders': orders,
+        'top_products': top_products,
+        'map_data': map_data,
+        'avg_website_rating': avg_website_rating,
+        'full_stars': range(full_stars),
+        'empty_stars': range(empty_stars),
+        'pending_orders': pending_orders,
+        'delivered_orders': delivered_orders,
+        'cancelled_orders': cancelled_orders,
+        'recent_orders': recent_orders,
+    }
+
+    # --- SEND DAILY EMAIL TO SUPERUSERS ---
+    html_message = render_to_string('Deliver/daily_report.html', context)
+    superusers = User.objects.filter(is_superuser=True)
+    for admin in superusers:
+        if admin.email:
+            send_mail(
+                subject=f'Daily Report - {timezone.now().date()}',
+                message='Your email client does not support HTML emails.',
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[admin.email],
+                html_message=html_message,
+            )
+
+    return render(request, 'Deliver/Reports.html', context)

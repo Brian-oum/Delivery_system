@@ -1,0 +1,28 @@
+<h2>Daily Report - {{ date }}</h2>
+
+<p>Total Products: {{ total_products }}</p>
+<p>Total Orders: {{ total_orders }}</p>
+<p>Total Sales: Ksh{{ total_sales }}</p>
+
+<h3>Top Products</h3>
+<ul>
+{% for product in top_products %}
+    <li>{{ product.name }} - {{ product.order_count }} orders</li>
+{% endfor %}
+</ul>
+
+<h3>Order Status</h3>
+<ul>
+    <li>Pending: {{ pending_orders }}</li>
+    <li>Delivered: {{ delivered_orders }}</li>
+    <li>Cancelled: {{ cancelled_orders }}</li>
+</ul>
+
+<h3>Recent Orders</h3>
+<ul>
+{% for order in recent_orders %}
+    <li>Order #{{ order.id }} - {{ order.status }} - Ksh{{ order.total_amount }}</li>
+{% endfor %}
+</ul>
+
+<p>Average Website Rating: {{ avg_website_rating }} / 5</p>

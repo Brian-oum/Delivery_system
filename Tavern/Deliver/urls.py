@@ -3,7 +3,9 @@
 from django.urls import path
 from . import views
 
+
 urlpatterns = [
+
     # =========================
     # Authentication
     # =========================
@@ -45,6 +47,7 @@ urlpatterns = [
     path('intasend/webhook/', views.intasend_webhook, name='intasend_webhook'),
     path('checkout/intasend/status/<int:order_id>/', views.check_payment_status, name='check_payment_status'),
     path('checkout/payment-wait/<int:order_id>/', views.payment_wait, name='payment_wait'),
+    path('ajax/delivery/', views.ajax_calculate_delivery, name='ajax_delivery'),
 
     # =========================
     # Ratings
@@ -56,9 +59,9 @@ urlpatterns = [
     # Promotions
     # =========================
     path('promotions/', views.promotions_list, name='promotions'),
-
     # =========================
     # Admin Reports
-    # =========================
-    #path('admin-reports/', views.admin_reports, name='admin_reports'),
+    # ========================
+    path('reports/', views.reports, name='reports'),
+
 ]

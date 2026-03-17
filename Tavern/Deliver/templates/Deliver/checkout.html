@@ -14,67 +14,22 @@
 .step.active .step-circle { background: #343a40; }
 .step-line { width: 150px; height: 2px; background: #dee2e6; margin-bottom: 25px; }
 .step-line.filled { background: #28a745; }
-
 /* --- Map Modal --- */
-#mapModal .modal-dialog {
-    position: fixed;
-    margin: 0;
-    width: 100%;
-    max-width: 600px;
-    height: 100%;
-    left: 0;
-    top: 0;
-    transform: translate3d(-100%,0,0);
-    transition: transform 0.3s ease-in-out;
-    z-index: 1055;
-}
+#mapModal .modal-dialog { position: fixed; margin: 0; width: 100%; max-width: 600px; height: 100%; left: 0; top: 0; transform: translate3d(-100%,0,0); transition: transform 0.3s ease-in-out; z-index: 1055; }
 #mapModal.show .modal-dialog { transform: translate3d(0,0,0); }
 #mapModal .modal-content { height: 100%; display: flex; flex-direction: column; border-radius: 0; border: none; }
 #mapModal .modal-body { padding: 1.5rem; flex:1; display: flex; flex-direction: column; gap:1rem; overflow-y:auto; }
 #map { min-height: 300px; width: 100%; border-radius: 8px; border:1px solid #ddd; }
-
-.modal-input { 
-    padding: 12px; 
-    border: 1px solid #ddd; 
-    border-radius: 4px; 
-    width: 100%; 
-    box-sizing: border-box;
-}
+.modal-input { padding: 12px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
 .btn-save-address { background-color:#063b06; color:white; width:100%; padding:15px; border:none; font-weight:bold; text-transform:uppercase; }
-
 /* --- Search Container --- */
-.search-container {
-    position: relative;
-    width: 100%;
-    margin-left: 0;
-}
-
-#address-results {
-    position: absolute;
-    top: 100%; 
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid #ddd;
-    border-top: none;
-    z-index: 2000;
-    display: none;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
-
-.result-item {
-    padding: 10px 15px;
-    cursor: pointer;
-    border-bottom: 1px solid #eee;
-    font-size: 0.9rem;
-}
-
+.search-container { position: relative; width: 100%; margin-left: 0; }
+#address-results { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-top: none; z-index: 2000; display: none; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+.result-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 0.9rem; }
 .result-item:hover { background-color: #f8f9fa; }
-
 /* --- Order Summary --- */
 .sticky-summary { position: sticky; top: 20px; }
 .order-items-scroll { max-height: 300px; overflow-y: auto; }
-
 </style>
 
 <div class="container my-5">
@@ -96,22 +51,10 @@
             <div class="col-lg-7">
                 <h4 class="mb-4">Billing Details</h4>
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">First Name *</label>
-                        <input type="text" name="first_name" class="form-control" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Last Name *</label>
-                        <input type="text" name="last_name" class="form-control" required>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Phone *</label>
-                        <input type="tel" name="phone" class="form-control" required>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label">Email *</label>
-                        <input type="email" name="email" class="form-control" required>
-                    </div>
+                    <div class="col-md-6"><label class="form-label">First Name *</label><input type="text" name="first_name" class="form-control" required></div>
+                    <div class="col-md-6"><label class="form-label">Last Name *</label><input type="text" name="last_name" class="form-control" required></div>
+                    <div class="col-12"><label class="form-label">Phone *</label><input type="tel" name="phone" class="form-control" required></div>
+                    <div class="col-12"><label class="form-label">Email *</label><input type="email" name="email" class="form-control" required></div>
 
                     <!-- Map Selection -->
                     <div class="col-12">
@@ -153,26 +96,30 @@
                     <hr class="my-4">
                     <div class="d-flex justify-content-between mb-2"><span class="text-muted">Subtotal (ex. VAT)</span><span>KSh {{ subtotal_ex_vat|floatformat:0 }}</span></div>
                     <div class="d-flex justify-content-between mb-2"><span class="text-muted">VAT (16%)</span><span>KSh {{ vat_amount|floatformat:0 }}</span></div>
-                    <div class="d-flex justify-content-between mb-4"><span class="fs-4 fw-bold">Total</span><span class="fs-4 fw-bold text-success">KSh {{ total|floatformat:0 }}</span></div>
+
+                    <!-- Delivery Info -->
+                    <div class="d-flex justify-content-between mb-2"><span class="text-muted">Delivery Fee</span><span class="delivery-fee">{% if delivery_fee %}KSh {{ delivery_fee|floatformat:0 }}{% else %}<span class="text-muted small">Calculated after location selection</span>{% endif %}</span></div>
+                    <div class="d-flex justify-content-between mb-2"><span class="text-muted">Distance</span><span class="distance">{% if distance %}{{ distance|floatformat:2 }} km{% else %}-{% endif %}</span></div>
+                    <div class="d-flex justify-content-between mb-3"><span class="text-muted">Delivery Zone</span><span class="zone">{% if delivery_zone %}{{ delivery_zone }}{% else %}-{% endif %}</span></div>
+
+                    <!-- FINAL TOTAL -->
+                    <div class="d-flex justify-content-between mb-4">
+                        <span class="fs-4 fw-bold">Total</span>
+                        <span class="fs-4 fw-bold text-success total">KSh {{ total|floatformat:0 }}</span>
+                    </div>
 
                     <div class="payment-option border p-3 rounded mb-3 bg-light">
                         <div class="form-check d-flex align-items-center justify-content-between w-100">
                             <div class="flex-grow-1">
                                 <input class="form-check-input" type="radio" name="payment" value="intasend" id="intasend" checked>
-                                <label class="form-check-label fw-bold" for="intasend">
-                                  Pay with M-Pesa
-                                </label>
+                                <label class="form-check-label fw-bold" for="intasend">Pay with M-Pesa</label>
                             </div>
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" 
-                             alt="M-Pesa" 
-                             style="height: 25px; width: auto; object-fit: contain;">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/15/M-PESA_LOGO-01.svg" alt="M-Pesa" style="height: 25px; width: auto; object-fit: contain;">
                         </div>
                         <p class="small text-muted mt-2 mb-0">You will be redirected to M-Pesa to complete payment securely.</p>
                     </div>
 
-                    <p style="font-size: 0.7rem;" class="text-muted mb-3">
-                        By placing an order, I confirm I am 18+ and accept the terms and conditions.
-                    </p>
+                    <p style="font-size: 0.7rem;" class="text-muted mb-3">By placing an order, I confirm I am 18+ and accept the terms and conditions.</p>
                     <button type="submit" class="btn btn-success w-100 py-3 fw-bold">PROCEED TO PAYMENT</button>
                 </div>
             </div>
@@ -196,13 +143,10 @@
                 </div>
 
                 <div class="d-flex mb-2">
-                    <button type="button" id="currentLocationBtn" class="btn btn-outline-primary w-100">
-                        Use Current Location
-                    </button>
+                    <button type="button" id="currentLocationBtn" class="btn btn-outline-primary w-100">Use Current Location</button>
                 </div>
 
                 <div id="map" style="min-height: 400px;"></div>
-
                 <input type="text" id="modal_door" class="modal-input mt-2" placeholder="Door / Flat no. (Optional)">
             </div>
             <div class="modal-footer border-0 p-0">
@@ -240,11 +184,30 @@ function updateMarker(lat, lng) {
             const pos = e.target.getLatLng();
             document.getElementById('latitude').value = pos.lat;
             document.getElementById('longitude').value = pos.lng;
+            updateDeliveryFee(pos.lat, pos.lng);
         });
     }
     map.setView(latlng, 17);
     document.getElementById('latitude').value = lat;
     document.getElementById('longitude').value = lng;
+    updateDeliveryFee(lat, lng);
+}
+
+// --- AJAX Delivery Fee ---
+function updateDeliveryFee(lat, lng) {
+    fetch(`/ajax/delivery/?lat=${lat}&lng=${lng}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) return;
+            document.querySelector('.delivery-fee').innerHTML = `KSh ${data.delivery_fee}`;
+            document.querySelector('.distance').innerHTML = `${data.distance} km`;
+            document.querySelector('.zone').innerHTML = data.zone;
+
+            let subtotal = parseFloat("{{ subtotal_ex_vat|floatformat:0 }}") || 0;
+            let vat = parseFloat("{{ vat_amount|floatformat:0 }}") || 0;
+            let total = subtotal + vat + data.delivery_fee;
+            document.querySelector('.total').innerHTML = `KSh ${total}`;
+        });
 }
 
 // --- Search Autocomplete ---
@@ -276,30 +239,21 @@ searchInput.addEventListener('input', function() {
         });
     }, 300);
 });
-
 document.addEventListener('click', e => { if (!searchInput.contains(e.target)) resultsContainer.style.display = 'none'; });
 
 // --- Use Current Location ---
 currentLocationBtn.addEventListener('click', () => {
-    if (!navigator.geolocation) { alert("Geolocation is not supported by your browser."); return; }
-
+    if (!navigator.geolocation) { alert("Geolocation not supported"); return; }
     navigator.geolocation.getCurrentPosition(
         (position) => {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             updateMarker(lat, lng);
-
-            document.getElementById('latitude').value = lat;
-            document.getElementById('longitude').value = lng;
-
-            // Reverse geocode
             fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
                 .then(res => res.json())
-                .then(data => {
-                    searchInput.value = data.display_name || '';
-                });
+                .then(data => { searchInput.value = data.display_name || ''; });
         },
-        () => { alert("Unable to retrieve your location. Please check permissions."); },
+        () => { alert("Unable to retrieve location"); },
         { enableHighAccuracy: true, timeout: 10000 }
     );
 });
@@ -311,10 +265,7 @@ document.getElementById('saveLocationBtn').addEventListener('click', function() 
     const lat = document.getElementById('latitude').value;
     const lng = document.getElementById('longitude').value;
 
-    if (!lat || !lng) { 
-        alert("Please select a location on the map or use current location."); 
-        return; 
-    }
+    if (!lat || !lng) { alert("Select a location first"); return; }
 
     document.getElementById('location_name').value = address;
     document.getElementById('building_name').value = address;

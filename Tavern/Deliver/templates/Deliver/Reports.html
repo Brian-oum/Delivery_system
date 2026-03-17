@@ -1,0 +1,269 @@
+{% extends "Deliver/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid py-4" style="background-color: #f8f9fa; min-height: 100vh;">
+  <div class="container-xl px-3 px-md-4">
+
+    <!-- Header / Actions -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+      <div>
+        <h1 class="h4 mb-1 fw-bold text-dark">Daily Analytics</h1>
+        <p class="text-muted small mb-0">Snapshot of today’s performance across orders, sales, and inventory.</p>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+          <i class="fas fa-print me-2"></i>Print
+        </button>
+        <button class="btn btn-primary btn-sm shadow-sm">
+          <i class="fas fa-download me-2"></i>Export PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row gy-3 gx-4 mb-4">
+      <div class="col-xl-3 col-md-6">
+        <a href="{% url 'admin:Deliver_product_changelist' %}" class="text-decoration-none text-reset">
+          <div class="card border-0 shadow-sm h-100 hover-shadow">
+            <div class="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <div class="text-uppercase text-muted fw-semibold small mb-1">Total Inventory</div>
+                <div class="h3 mb-0 fw-bold text-dark">{{ total_products }}</div>
+                <div class="text-xs text-primary mt-2">Active products</div>
+              </div>
+              <div class="kpi-card-icon bg-primary-subtle text-primary">
+                <i class="fas fa-boxes"></i>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <div class="col-xl-3 col-md-6">
+        <a href="{% url 'admin:Deliver_order_changelist' %}" class="text-decoration-none text-reset">
+          <div class="card border-0 shadow-sm h-100 hover-shadow">
+            <div class="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <div class="text-uppercase text-muted fw-semibold small mb-1">Orders Processed</div>
+                <div class="h3 mb-0 fw-bold text-dark">{{ total_orders }}</div>
+                <div class="text-xs text-success mt-2">Completed today</div>
+              </div>
+              <div class="kpi-card-icon bg-success-subtle text-success">
+                <i class="fas fa-shopping-cart"></i>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <div class="col-xl-3 col-md-6">
+        <a href="{% url 'admin:Deliver_order_changelist' %}" class="text-decoration-none text-reset">
+          <div class="card border-0 shadow-sm h-100 hover-shadow">
+            <div class="card-body d-flex justify-content-between align-items-center">
+              <div>
+                <div class="text-uppercase text-muted fw-semibold small mb-1">Total Sales</div>
+                <div class="h3 mb-0 fw-bold text-dark">Ksh {{ total_sales|floatformat:0 }}</div>
+                <div class="text-xs text-info mt-2">Gross revenue</div>
+              </div>
+              <div class="kpi-card-icon bg-info-subtle text-info">
+                <i class="fas fa-coins"></i>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <div class="col-xl-3 col-md-6">
+        <div class="card border-0 shadow-sm h-100 hover-shadow">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-uppercase text-muted fw-semibold small mb-1">Website Rating</div>
+                <div class="d-flex align-items-center">
+                  <div class="h3 mb-0 fw-bold text-dark me-2">{{ avg_website_rating|floatformat:1 }}</div>
+                  <div class="mt-1">
+                    {% for _ in full_stars %}<span class="star-gold">&#9733;</span>{% endfor %}
+                    {% for _ in empty_stars %}<span class="star-gray">&#9733;</span>{% endfor %}
+                  </div>
+                </div>
+                <div class="text-xs text-warning mt-2">Customer satisfaction</div>
+              </div>
+              <div class="kpi-card-icon bg-warning-subtle text-warning">
+                <i class="fas fa-star"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <div>
+          <h6 class="mb-1 fw-bold text-primary">Geographic Order Density</h6>
+          <span class="text-muted small">Kenya – heatmap of today’s orders</span>
+        </div>
+        <span class="badge bg-light text-muted border small">Live</span>
+      </div>
+      <div class="card-body p-0">
+        <div id="orderMap" style="height: 400px; width: 100%; border-radius: 0 0 .5rem .5rem; overflow: hidden;"></div>
+      </div>
+    </div>
+
+    <!-- Top Products -->
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <div>
+          <h6 class="m-0 fw-bold text-primary">Top Performing Products</h6>
+          <span class="text-muted small">Based on order volume for the selected period</span>
+        </div>
+        <a href="{% url 'admin:Deliver_product_changelist' %}" class="btn btn-sm btn-outline-primary">
+          View all
+        </a>
+      </div>
+      <div class="table-responsive" style="max-height: 460px;">
+        <table class="table table-hover align-middle mb-0 table-sticky-header">
+          <thead class="bg-light text-muted small text-uppercase">
+            <tr>
+              <th class="ps-4">Product</th>
+              <th>Unit price</th>
+              <th class="text-center">Total orders</th>
+              <th class="text-center">Stock</th>
+              <th class="text-end pe-4">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for product in top_products %}
+            <tr>
+              <td class="ps-4">
+                <div class="d-flex align-items-center">
+                  {% if product.image %}
+                  <img src="{{ product.image.url }}" class="rounded shadow-sm border me-3"
+                       style="width: 46px; height: 46px; object-fit: cover;">
+                  {% else %}
+                  <div class="rounded border bg-light me-3 d-flex align-items-center justify-content-center"
+                       style="width: 46px; height: 46px;">
+                    <i class="fas fa-box text-muted"></i>
+                  </div>
+                  {% endif %}
+                  <div>
+                    <div class="fw-semibold text-dark">{{ product.name }}</div>
+                    <div class="text-muted small">ID #{{ product.id }}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="fw-semibold">Ksh {{ product.price|floatformat:2 }}</span>
+              </td>
+              <td class="text-center">
+                <span class="badge rounded-pill bg-primary-subtle text-primary px-3 border border-primary-subtle">
+                  {{ product.order_count }} orders
+                </span>
+              </td>
+              <td class="text-center">
+                {% if product.stock > 15 %}
+                  <span class="badge bg-success-subtle text-success fw-semibold">
+                    <i class="fas fa-circle me-1" style="font-size: 8px;"></i>In stock ({{ product.stock }})
+                  </span>
+                {% elif product.stock > 0 %}
+                  <span class="badge bg-warning-subtle text-warning fw-semibold">
+                    <i class="fas fa-circle me-1" style="font-size: 8px;"></i>Low ({{ product.stock }})
+                  </span>
+                {% else %}
+                  <span class="badge bg-danger-subtle text-danger fw-semibold">
+                    <i class="fas fa-circle me-1" style="font-size: 8px;"></i>Out of stock
+                  </span>
+                {% endif %}
+              </td>
+              <td class="text-end pe-4">
+                <a href="{% url 'admin:Deliver_product_change' product.id %}" class="btn btn-sm btn-outline-secondary">
+                  <i class="fas fa-edit"></i>
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" class="text-center py-5">
+                <p class="text-muted mb-1">No performance data found for the selected period.</p>
+                <p class="text-muted small mb-0">Try widening the date range or checking filters.</p>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- External libraries -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+
+<style>
+  .hover-shadow { transition: all 0.2s ease; }
+  .hover-shadow:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08) !important;
+  }
+  .star-gold { color: #ffc107; font-size: 1.1rem; }
+  .star-gray { color: #e4e6ef; font-size: 1.1rem; }
+  .text-xs {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+
+  /* Subtle background helpers (Bootstrap 5-style) [web:21][web:23] */
+  .bg-primary-subtle { background-color: rgba(13, 110, 253, 0.08); }
+  .bg-success-subtle { background-color: rgba(25, 135, 84, 0.08); }
+  .bg-info-subtle { background-color: rgba(13, 202, 240, 0.08); }
+  .bg-warning-subtle { background-color: rgba(255, 193, 7, 0.10); }
+  .bg-danger-subtle { background-color: rgba(220, 53, 69, 0.08); }
+  .border-primary-subtle { border-color: rgba(13, 110, 253, 0.25) !important; }
+
+  .kpi-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+  }
+
+  /* Sticky table header for tall tables [web:19][web:22][web:24] */
+  .table-sticky-header thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+</style>
+
+<script>
+  // Initialize Map
+  var map = L.map('orderMap').setView([-1.286389, 36.817223], 7);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+
+  var addressPoints = {{ map_data|safe }};
+  L.heatLayer(addressPoints, {
+    radius: 20,
+    blur: 15,
+    maxZoom: 10,
+    gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+  }).addTo(map);
+
+  const kenyaBounds = [[-4.7, 33.8], [5.1, 41.9]];
+  map.setMaxBounds(kenyaBounds);
+</script>
+
+{% endblock %}
