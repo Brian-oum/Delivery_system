@@ -63,6 +63,13 @@ urlpatterns = [
     # Admin Reports
     # ========================
     path('reports/', views.reports, name='reports'),
+    # =========================
+    # Invoice
+    # ========================
+    path('invoice/<int:order_id>/', views.generate_invoice, name='view_invoice'),
+    # =========================
+    # Order Tracking
+    # ========================
     path('track/<int:order_id>/', views.track_order, name='track_order'),
     path('driver/<int:order_id>/', views.driver_tracking, name='driver_tracking'),
     path('driver-location/<int:order_id>/', views.driver_location),

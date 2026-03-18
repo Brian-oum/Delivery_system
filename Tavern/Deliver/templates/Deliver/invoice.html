@@ -1,0 +1,78 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice #{{ order.id }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+        .logo img { width: 150px; }
+        h1 { font-size: 24px; margin: 0; }
+        .invoice-info { text-align: right; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #f6f6f6; }
+        .total { text-align: right; font-weight: bold; margin-top: 20px; }
+        .footer { margin-top: 40px; font-size: 12px; color: #777; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">
+        <img src="{{ company_logo }}" alt="Company Logo">
+    </div>
+    <div class="invoice-info">
+        <h1>Invoice #{{ order.id }}</h1>
+        <p>Order Date: {{ order.created_at|date:"d M Y" }}</p>
+        <p>Status: {{ order.status }}</p>
+    </div>
+</div>
+
+<h2>Customer Details</h2>
+<p>
+    {% if order.first_name or order.last_name %}
+        {{ order.first_name }} {{ order.last_name }}<br>
+    {% endif %}
+    {% if order.email %}
+        {{ order.email }}<br>
+    {% endif %}
+    {% if order.phone %}
+        {{ order.phone }}<br>
+    {% endif %}
+    {% if order.building_name or order.door_number %}
+        {{ order.building_name }} {{ order.door_number }}<br>
+    {% endif %}
+</p>
+
+<h2>Order Items</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Unit Price (KES)</th>
+            <th>Total (KES)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.product.name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>KES {{ item.price|floatformat:2 }}</td>
+            <td>KES {{ item.line_total|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="total">Total Amount: KES {{ order.total_amount|floatformat:2 }}</p>
+
+<div class="footer">
+    Thank you for shopping with us!<br>
+</div>
+
+</body>
+</html>

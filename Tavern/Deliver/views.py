@@ -10,6 +10,8 @@ from .forms import UserRegistrationForm, CustomLoginForm
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from decimal import Decimal
+from xhtml2pdf import pisa
+from django.template.loader import get_template
 from django.db import transaction
 import requests
 from django.template.loader import render_to_string
@@ -787,3 +789,46 @@ def update_driver_location(request, order_id):
         tracking.save()
 
         return JsonResponse({"status": "updated"})
+
+#========================
+# INVOICE
+#========================
+def generate_invoice(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    
+    # Calculate line totals
+    items_with_totals = []
+    total_amount = 0
+    for item in order.items.all():
+        line_total = item.quantity * item.price
+        total_amount += line_total
+        items_with_totals.append({
+            'product': item.product,
+            'quantity': item.quantity,
+            'price': item.price,
+            'line_total': line_total,
+        })
+    
+    order.total_amount = total_amount
+
+    # Company logo URL
+    company_logo = request.build_absolute_uri('/static/images/logo.jpg')
+
+    template_path = 'Deliver/invoice.html'
+    context = {
+        'order': order,
+        'items': items_with_totals,
+        'company_logo': company_logo
+    }
+
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="invoice_{order.id}.pdf"'
+
+    template = get_template(template_path)
+    html = template.render(context)
+
+    # Generate PDF
+    pisa_status = pisa.CreatePDF(html, dest=response)
+    if pisa_status.err:
+        return HttpResponse('We had some errors <pre>' + html + '</pre>')
+    return response
