@@ -143,8 +143,9 @@ class ProductRating(models.Model):
 
 
 class WebsiteRating(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, blank= True, null=True)
     rating = models.IntegerField()
+    order = models.OneToOneField(Order, on_delete=models.CASCADE, default=1) 
     comment = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -155,3 +156,12 @@ class Promotion(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     active = models.BooleanField(default=True)
+
+class OrderTracking(models.Model):
+    order = models.OneToOneField(Order, on_delete=models.CASCADE)
+    driver_latitude = models.FloatField(null=True, blank=True)
+    driver_longitude = models.FloatField(null=True, blank=True)
+    status = models.CharField(max_length=50, default="pending")
+
+    def __str__(self):
+        return f"Tracking for Order {self.order.id}"

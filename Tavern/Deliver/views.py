@@ -624,25 +624,28 @@ def rate_product(request, pk):
 def rate_website(request, order_id):
     order = get_object_or_404(Order, id=order_id)
 
-    # Only allow rating if payment is successful
+    # Only allow rating after payment
     if order.status != "paid":
         messages.error(request, "You can only rate after a successful payment.")
         return redirect('orders')
 
-    # Prevent multiple ratings per user per order (optional)
-    if WebsiteRating.objects.filter(user=request.user).exists():
-        messages.info(request, "You have already rated our website.")
+    # Prevent duplicate rating per order
+    if WebsiteRating.objects.filter(order=order).exists():
+        messages.info(request, "You have already rated this order.")
         return redirect('orders')
 
     if request.method == "POST":
         rating_value = request.POST.get("rating")
         comment = request.POST.get("comment", "")
+
         if rating_value:
             WebsiteRating.objects.create(
-                user=request.user,
+                user=request.user if request.user.is_authenticated else None,
+                order=order,  # 🔥 key fix
                 rating=int(rating_value),
                 comment=comment
             )
+
             messages.success(request, "Thank you for your feedback!")
             return redirect('orders')
         else:
@@ -738,3 +741,49 @@ def reports(request):
             )
 
     return render(request, 'Deliver/Reports.html', context)
+
+# ORDER TRACKING
+def track_order(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user)
+    tracking = OrderTracking.objects.filter(order=order).first()
+
+    return render(request, "Deliver/track_order.html", {
+        "order": order,
+        "tracking": tracking
+    })
+
+
+# API: SEND DRIVER LOCATION TO FRONTEND
+def driver_location(request, order_id):
+    tracking = get_object_or_404(OrderTracking, order_id=order_id)
+
+    return JsonResponse({
+        "lat": tracking.driver_latitude or 0,
+        "lng": tracking.driver_longitude or 0,
+        "status": tracking.status
+    })
+
+
+# DRIVER PAGE
+def driver_tracking(request, order_id):
+    order = get_object_or_404(Order, id=order_id)
+    return render(request, "Deliver/driver_tracking.html", {"order": order})
+
+
+# API: RECEIVE DRIVER LOCATION
+@csrf_exempt
+def update_driver_location(request, order_id):
+    if request.method == "POST":
+        data = json.loads(request.body)
+
+        lat = data.get("lat")
+        lng = data.get("lng")
+
+        tracking, created = OrderTracking.objects.get_or_create(order_id=order_id)
+
+        tracking.driver_latitude = lat
+        tracking.driver_longitude = lng
+        tracking.status = "on_the_way"
+        tracking.save()
+
+        return JsonResponse({"status": "updated"})

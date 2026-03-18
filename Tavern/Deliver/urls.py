@@ -63,5 +63,9 @@ urlpatterns = [
     # Admin Reports
     # ========================
     path('reports/', views.reports, name='reports'),
+    path('track/<int:order_id>/', views.track_order, name='track_order'),
+    path('driver/<int:order_id>/', views.driver_tracking, name='driver_tracking'),
+    path('driver-location/<int:order_id>/', views.driver_location),
+    path('update-location/<int:order_id>/', views.update_driver_location),
 
 ]

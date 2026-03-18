@@ -1,0 +1,29 @@
+<h2>Driver Tracking for Order #{{ order.id }}</h2>
+
+<p id="status">Sending location...</p>
+
+<script>
+var orderId = "{{ order.id }}";
+
+function sendLocation(lat, lng){
+    fetch("/update-location/" + orderId + "/", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({lat: lat, lng: lng})
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("status").innerText = "Location sent successfully";
+    })
+    .catch(() => {
+        document.getElementById("status").innerText = "Error sending location";
+    });
+}
+
+// Get real GPS
+if(navigator.geolocation){
+    navigator.geolocation.watchPosition(function(position){
+        sendLocation(position.coords.latitude, position.coords.longitude);
+    });
+}
+</script>

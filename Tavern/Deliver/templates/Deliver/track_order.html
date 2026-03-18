@@ -1,0 +1,151 @@
+{% extends "Deliver/base.html" %}
+
+{% block content %}
+<style>
+    #map-container { position: relative; width: 100%; }
+    #map { height: 550px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+    
+    /* Premium Info Overlay */
+    .tracking-card {
+        position: absolute; top: 20px; left: 20px; z-index: 1000;
+        background: white; padding: 15px; border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); width: 250px;
+    }
+    .status-dot {
+        height: 10px; width: 10px; background-color: #2ecc71;
+        border-radius: 50%; display: inline-block; margin-right: 5px;
+    }
+    /* Smooth rotation for the truck icon */
+    .truck-icon { transition: transform 0.3s linear; }
+</style>
+
+<div class="container mt-4">
+    <h2>Track Order #{{ order.id }}</h2>
+    
+    <div id="map-container">
+        <div class="tracking-card">
+            <h5 style="margin:0">Live Tracking</h5>
+            <p id="status-text" style="color: #666; font-size: 0.9em; margin: 5px 0;">
+                <span class="status-dot"></span> {{ tracking.status|default:"Locating driver..." }}
+            </p>
+            <hr>
+            <small>ESTIMATED ARRIVAL</small>
+            <div id="eta" style="font-size: 1.2em; font-weight: bold; color: #00aaff;">Calculating...</div>
+        </div>
+        <div id="map"></div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
+<script>
+// --- Configuration ---
+const CUSTOMER_COORD = [
+    {{ order.latitude|default:-1.2870|floatformat:6 }}, 
+    {{ order.longitude|default:36.8260|floatformat:6 }}
+];
+let driverCoord = [CUSTOMER_COORD[0] - 0.015, CUSTOMER_COORD[1] - 0.015];
+let isMoving = false;
+
+// --- Initialize Map ---
+const map = L.map('map').setView(driverCoord, 14);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '©OpenStreetMap'
+}).addTo(map);
+
+// --- Icons ---
+const truckIcon = L.icon({
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/1995/1995560.png",
+    iconSize: [45, 45],
+    className: 'truck-icon'
+});
+
+const customerIcon = L.icon({
+    iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+    iconSize: [35, 35]
+});
+
+// --- Markers ---
+const driverMarker = L.marker(driverCoord, {icon: truckIcon}).addTo(map);
+const customerMarker = L.marker(CUSTOMER_COORD, {icon: customerIcon}).addTo(map);
+
+// Fit bounds initially
+const bounds = L.latLngBounds([driverCoord, CUSTOMER_COORD]);
+map.fitBounds(bounds, {padding: [50, 50]});
+
+// --- Routing Engine ---
+const control = L.Routing.control({
+    waypoints: [L.latLng(driverCoord), L.latLng(CUSTOMER_COORD)],
+    routeWhileDragging: false,
+    addWaypoints: false,
+    createMarker: () => null,
+    lineOptions: { styles: [{ color: '#00aaff', weight: 5, opacity: 0.7 }] }
+}).addTo(map);
+
+// --- Animation Logic ---
+function moveSmoothly(routeCoords) {
+    if (isMoving) return;
+    isMoving = true;
+
+    let i = 0;
+    const speed = 2; // Increase for faster simulation
+
+    function step() {
+        if (i >= routeCoords.length - 1) {
+            isMoving = false;
+            document.getElementById("status-text").innerHTML = '<span class="status-dot" style="background:#e74c3c"></span> Arrived';
+            return;
+        }
+
+        const start = routeCoords[i];
+        const end = routeCoords[i + 1];
+        
+        // Update Position
+        driverMarker.setLatLng([end.lat, end.lng]);
+        
+        // Update Rotation (Only apply to the img element to avoid breaking Leaflet's positioning)
+        const angle = Math.atan2(end.lng - start.lng, end.lat - start.lat) * (180 / Math.PI);
+        const iconImg = driverMarker.getElement();
+        if (iconImg) {
+            iconImg.style.transform += ` rotate(${angle}deg)`;
+        }
+
+        i++;
+        setTimeout(step, 100 / speed); 
+    }
+    step();
+}
+
+// --- Real-time Update Listener ---
+control.on('routesfound', function(e) {
+    const routes = e.routes[0];
+    const summary = routes.summary;
+    
+    // Update ETA Card
+    const minutes = Math.round(summary.totalTime / 60);
+    document.getElementById("eta").innerText = minutes > 0 ? `${minutes} mins away` : "Arriving now!";
+    
+    if (!isMoving) {
+        moveSmoothly(routes.coordinates);
+    }
+});
+
+// --- Simulation Trigger ---
+// In production, replace this with a Fetch call to your Django API
+function updateDriverLocation() {
+    // If we're already moving, don't trigger a recalculation to save resources
+    if (!isMoving) {
+        control.setWaypoints([
+            L.latLng(driverMarker.getLatLng()),
+            L.latLng(CUSTOMER_COORD)
+        ]);
+    }
+}
+
+// Run every 10 seconds
+setInterval(updateDriverLocation, 10000);
+</script>
+{% endblock %}
